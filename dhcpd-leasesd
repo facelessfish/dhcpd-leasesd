@@ -1,0 +1,351 @@
+#!/bin/sh
+version='1.0'
+# Copyright (c) 2022 Dinos Costanti <dinos@lab02.org>
+# 
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+set -e
+
+listen='127.0.0.1'
+port='9130'
+leases_db='/var/db/dhcpd.leases'
+dhcpd_conf='/etc/dhcpd.conf'
+
+fifo='/tmp/dhcpd_leases_http'
+oui_tmp='/tmp/oui'
+oui_db='oui_ieee_'
+css='inc/styles.css'
+js='inc/javascript.js'
+
+self=$0
+merge=true
+help="dhcpd-leasesd [-b dhcpd.leases] [-c dhcpd.conf] [-t] [-v] [-u] [-f out_file]\n              [-d [-l listening_ip_address] [-p port]]"
+
+logo="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"
+
+opt_vendor_lookup=false
+opt_server=false
+opt_header=false
+
+
+# IP functions
+function ip_to_int {
+	IFS='.'; set -- $1
+	typeset -U int
+	let int=16777216*${1}+65536*${2}+256*${3}+${4}
+	print $int
+}
+function mask_to_cidr {
+	x=${1##*255.}
+	set -- 0^^^128^192^224^240^248^252^254^ $(( (${#1} - ${#x})*2 )) ${x%%.*}
+	x=${1%%$3*}
+	print $(( $2 + (${#x}/4) ))
+}
+
+
+# Download and convert the OUI database from https://standards-oui.ieee.org/ to $oui_tmp/$oui_db[0-f].csv
+function oui_update {
+	if  [ ! -f "${oui_tmp}/${oui_db}0.csv" ]; then
+		if [ ! -d "$oui_tmp" ]; then
+			mkdir "$oui_tmp"
+		fi
+		rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
+		progress=0
+		print "$(date '+%H:%M:%S') Downloading from https://standards-oui.ieee.org"
+		typeset -l index
+
+		print "GET / HTTP/1.1\nHost: standards-oui.ieee.org\nConnection: close\r\n" | nc -c standards-oui.ieee.org 443 \
+		| tr -d "\r" \
+		| grep "(hex)" \
+		| while read -r line; do
+			row="${line%'   (hex)		'*}|${line#*'   (hex)		'}" # "\ \ \ (hex)\t\t"
+			index=${row%"${row#?}"}	#first char
+			print "$row" >> "${oui_tmp}/${oui_db}${index}.csv"
+
+			progress=$progress+1
+			if [ $progress -gt 300 ]; then
+				progress=0
+				print -n '.'
+			fi
+		done
+
+		print "$(cat $oui_tmp/* | wc -l) Vendors"
+		print "$(date '+%H:%M:%S') Finished."
+	fi
+}
+
+
+function dhcpd_conf_parse {
+	IFS="${IFS};"
+	typeset -U ips
+	subnet_ips=0
+	ranges='<br>'
+	first=false
+
+	while read -r line; do
+		row="${line%'#'*}"
+		if [ ! "$row" = '' ]; then
+			set -A row_data $row
+			case "${row_data[0]}" in 
+				'subnet' )
+					if $first; then
+						print "<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0</span>)${ranges}</p></div>"
+						subnet_ips=0;
+						ranges='<br>'
+					fi
+					print "<div id="s_$(ip_to_int ${row_data[1]})"><input type=\"checkbox\" data-subnet=\"$(ip_to_int ${row_data[1]})\" data-mask=\"$(ip_to_int ${row_data[3]})\" checked><b>Subnet:</b><span>${row_data[1]}</span>/<span>$(mask_to_cidr ${row_data[3]})</span><br>"
+					first=true
+					;;
+				'range' )
+					let ips=$(ip_to_int ${row_data[2]})-$(ip_to_int ${row_data[1]})+1
+					let subnet_ips=$subnet_ips+$ips;
+					ranges="${ranges}RG:<span>${row_data[1]}</span>-<span>${row_data[2]}</span>:<span>${ips}</span><br>"
+					;;
+			esac
+		fi
+	done < $dhcpd_conf
+	
+	if $first; then
+		print "<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0%</span>)${ranges}</p></div>"
+	fi
+}
+
+
+function dhcpd_leases_parse {
+	now="$(date -u '+%Y/%m/%d %H:%M:%S')"
+	lease=''
+
+	while read -r line; do
+		if [ ! "$line" = '}' ]; then
+			lease="${lease}|${line}"
+		else
+			IFS='|'; set -A lease_data $lease; unset IFS
+			if [ ${#lease_data[@]} -gt 3 ]; then 
+				ip=''; mac=''; starts=''; ends=''; state=''; vendor=''; hostname=''
+				for row in "${lease_data[@]}" ; do
+					set -A row_data $row
+					case "${row_data[0]}" in 
+						'lease' )
+							ip="${row_data[1]}"
+							;;
+						'starts' )
+							starts="${row_data[2]} ${row_data[3]}" 
+							;;
+						'ends' )
+							ends="${row_data[2]} ${row_data[3]}"
+							if [[ "$now" > "$ends" ]]; then
+								state='Expired'
+							else
+								state='Leased'
+							fi 
+							;;
+						'client-hostname' | 'hostname' )
+							hostname="${row#*'"'}"
+							hostname="${hostname%'"'*}" 
+							;;
+						'hardware' )
+							mac="${row_data[2]%';'*}"
+							if $opt_vendor_lookup; then
+								IFS=':'; set -- $mac; unset IFS
+								oui_data=$(grep -iF -m 1 ${1}-${2}-${3} ${oui_tmp}/${oui_db}${1%"${1#?}"}.csv 2>/dev/null) || true
+								if [ ! "$oui_data" = '' ]; then
+									vendor="${oui_data#*'|'}"
+								fi
+							fi
+							;;
+						"abandoned;" )
+							state="Abandoned" 
+							;;
+					esac
+				done
+				print "<tr class=\"${state}\"><td class=\"ip\">$ip</td><td class=\"starts\">$starts</td><td class=\"ends\">$ends</td><td class=\"mac\">$mac</td><td class=\"hostname\">$hostname</td><td class=\"vendor\">$vendor</td></tr>"
+			fi
+			lease=''
+		fi
+	done < $leases_db
+}
+
+
+function html_home_page {
+	now="$(date -u '+%Y/%m/%d %H:%M:%S')"
+	start=$(date +%s)
+	html_subnets="$(dhcpd_conf_parse)"
+	html_leases="$(dhcpd_leases_parse)"
+	seconds=$(( $(date +%s) - $start ))
+
+	cat <<EOF
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<link rel="icon" href="$logo"/>
+		<title>dhttpd.leases dashboard</title>
+		<style>$(cat $css)</style><script>$(cat $js)</script>
+	</head>
+	<body onload="init()">
+		<div id="main">
+			<div id="stats"> 
+				<img src="$logo"> <b>dhcpd.leases dashboard</b> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>) <b>Parsing&nbsp;time:</b><span>$seconds sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
+			</div>
+			<div id="subnets">
+				$html_subnets
+			</div>
+			<table id="bargraph">
+				<thead>
+					<tr><td colspan=24><b>Leases / hour</b> ( <span>past <select name="bargraph_range" id="bargraph_range"><option value=1>24 hrs</option><option value=2>2 days</option><option value=3>3 days</option><option value=4>4 days</option><option value=7>1 week</option></select></span> )</td></tr>
+				</thead>
+				<tbody></tbody>
+				<tfoot></tfoot>
+			</table>
+			<div id="header">
+				<b>dhcpd.leases:</b>&nbsp;
+				<table id="menu" cellspacing=2>
+					<tr>
+						<td id="All" class="selected">All:<span id="leases_total"></span></td><td id="Leased">Leased:<span id="leases_leased"></span></td><td id="Expired">Expired:<span id="leases_expired">&nbsp;&nbsp;&nbsp;</span></td><td id="Abandoned">Abandoned:<span id="leases_abandoned"></span></td>
+					</tr>
+				</table>&nbsp;&nbsp; 
+				<div><input size=16 id="search" type="search" placeholder="Search.." title="Search leases (all columns)"></div>&nbsp;&nbsp;&nbsp; <b>rows:</b><span id="leases_showing">All</span>
+				<div id ="clear" class="button"> &#x2715; Clear</div>
+			</div>
+			<div id=box>
+				<table id="leases">
+					<thead>
+						<tr>
+							<th>IP</th><th>Starts</th><th class="ASC">Ends</th><th>MAC</th><th>Hostname</th><th>Vendor</th>
+						</tr>
+					</thead>
+					<tbody>
+						$html_leases
+					</tbody>
+					<tfoot id="leases_message">
+						<tr><td colspan="6">-- empty --</td></tr>
+					</tfoot>
+				</table>
+			</div>
+		</div>
+	</body>
+	</html>
+EOF
+}
+
+
+function http_server {
+	print "Listening on ${listen}:${port}"
+	# Make fifo
+	if  [ ! -p "$fifo" ] ; then
+		mkfifo $fifo
+	fi
+	# Serve the page
+	while true ; do {  
+		read line < $fifo
+		print "HTTP/1.1 200 OK\n"
+		html_home_page
+		if  $opt_vendor_lookup && [ ! -f "${oui_tmp}/${oui_db}0.csv" ]; then
+			$self -u >/dev/null &
+		fi
+	}  | nc -lN $listen $port > $fifo
+	done
+}
+
+
+function script_export {
+	file=$1;
+	print "Merging script, javascript and styles into: $file"
+	> $file
+	IFS=''
+
+	if $merge; then 
+		while read -r line; do
+			if $merge; then
+				part="${line%'<style>'*}"
+				if [ ! "$part" = "$line" ]; then
+					print '<style>' >> $file
+					cat $css >> $file
+					print '</style><script>' >> $file
+					cat $js >> $file
+					print '</script>' >> $file
+					merge=false
+				else
+					part="${line%'merge='*}"
+					if [ ! "$part" = "$line" ]; then
+						line='merge=false'
+					fi
+					printf '%s\n' "${line}" >> $file
+				fi
+			else
+				printf '%s\n' "${line}" >> $file
+			fi
+		done < $self
+	else 
+		print "Cant merge a merged script (${self})."
+		exit
+	fi
+	chmod +x $file
+	print 'Done.'
+}
+
+
+while getopts 'dhtuvf:l:p:b:c:' name; do
+	case $name in
+	f)	
+		script_export $OPTARG
+		exit ;;
+	u)	
+		rm ${oui_tmp}/${oui_db}0.csv 2>/dev/null || [[ $? == 1 ]]
+		oui_update
+		exit ;;
+	d)	
+		opt_server=true ;;
+	v)	
+		opt_vendor_lookup=true ;;
+	t)
+		opt_header=true ;;
+	l)	
+		listen=$OPTARG ;;
+	p)	
+		port=$OPTARG ;;
+	b)
+		leases_db=$OPTARG ;;
+	c)
+		dhcpd_conf=$OPTARG ;;
+	h)	
+		print "${help}"
+		exit ;;
+	?)	
+		print "${help}"
+		exit 2 ;;
+	esac
+done
+shift $(($OPTIND - 1))
+
+
+# update Vendor db
+if $opt_vendor_lookup; then 
+	oui_update
+fi
+
+# Server using buildin nc server
+# ./dhcpd-leasesd  -dv -b dhcpd.leases -c dhcpd.conf -l 192.168.5.11 -p 9130
+if $opt_server; then
+	http_server
+	exit
+fi
+
+# Output an HTTP 200 header before HTML. Useful for tcpserver
+# tcpserver 0.0.0.0 2000 ./dhcpd-leasesd -t
+if $opt_header; then
+	print "HTTP/1.1 200 OK\n"
+fi
+
+# CGI mode
+html_home_page
+
