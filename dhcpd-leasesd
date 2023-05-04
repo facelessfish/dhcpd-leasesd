@@ -64,7 +64,7 @@ function oui_update {
 		print "$(date '+%H:%M:%S') Downloading from https://standards-oui.ieee.org"
 		typeset -l index
 
-		print "GET / HTTP/1.1\nHost: standards-oui.ieee.org\nConnection: close\r\n" | nc -c standards-oui.ieee.org 443 \
+		print "GET / HTTP/1.1\nHost: standards-oui.ieee.org\nConnection: close\r\n" | nc -w 60 -c standards-oui.ieee.org 443 \
 		| tr -d "\r" \
 		| grep "(hex)" \
 		| while read -r line; do
@@ -78,9 +78,15 @@ function oui_update {
 				print -n '.'
 			fi
 		done
-
-		print "$(cat $oui_tmp/* | wc -l) Vendors"
-		print "$(date '+%H:%M:%S') Finished."
+		
+		set -A vendors $(cat $oui_tmp/* | wc -l)
+		print "\n${vendors[0]} Vendors"
+		if [ $vendors -lt 33000 ]; then
+			print "$(date '+%H:%M:%S') Oui download interrupted. Incomplete data deleted."
+			rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
+		else
+			print "$(date '+%H:%M:%S') Finished."
+		fi
 	fi
 }
 
