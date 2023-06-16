@@ -81,7 +81,6 @@ a {
 #bargraph {
 	display: inline-table;
 	table-layout: fixed;
-	width: 100%;
 	font-size: 0.75rem;
 	background-color: var(--bg1-color);
 	border-collapse: collapse;
