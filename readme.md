@@ -26,7 +26,7 @@ Safari on macOS
 Firefox on OpenBSD
 
 ![Screenshot 4](screenshots/Screenshot_iridium_openbsd.png)
-Iridium (Chromium) on Openbsd
+Iridium (Chromium) on OpenBSD
 
 
 ## Installation
