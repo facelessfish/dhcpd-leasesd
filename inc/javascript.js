@@ -153,19 +153,20 @@ function bargraph_draw() {
 		  col_span = +bargraph_range.value,
 		  bars_num = col_span * 24,
 		  tbody_tr = document.createElement('tr'),
-		  tfoot_tr = document.createElement('tr'),
-		  font_stretch = (col_span < 2) ? '100%' : ( col_span > 6 ) ? '50%' : ( 100 - col_span * 8 ) + '%';
+		  tfoot_tr = document.createElement('tr');
 
+	tbody_tr.style.fontStretch = (col_span < 2) ? '100%' : ( col_span > 6 ) ? '50%' : ( 100 - col_span * 8 ) + '%';
 	bargraph.tHead.rows[0].cells[0].colSpan = bars_num;
+
 	for ( let i = 0; i < bars_num; i++ ) {
 		const td = document.createElement('td'),
+			  td_width = ( 100 / bars_num ) + '%',
 			  time = new Date(( graph_start + i ) * 3600000),
 			  time_ts = time.getTime(),
 			  leases = ( graph_ip_db[i] ) ? graph_ip_db[i] : 0;
 		
-		td.style.fontStretch = font_stretch;
 		td.title = 'New leases: ' + leases + "\n" + time.toLocaleString().replace(',', ' -');
-
+		td.style.width = td_width;
 		if ( leases ) {
 			const bar_div = document.createElement('div');
 			bar_div.style.height = ( leases * 85 / max_leases ) + '%';
