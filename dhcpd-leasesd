@@ -194,7 +194,7 @@ function html_home_page {
 	<html>
 	<head>
 		<link rel="icon" href="$logo"/>
-		<title>dhttpd.leases dashboard</title>
+		<title>dhcpd.leases dashboard</title>
 		<style>$(cat $css)</style><script>$(cat $js)</script>
 	</head>
 	<body onload="init()">
