@@ -308,6 +308,10 @@ a {
 	padding-top: 1rem;
 	padding-bottom: 0.4rem;
 	background-color: var(--bg-color);
+	white-space: nowrap;
+}
+#leases th i {
+	color: #80c080;
 }
 #leases th:hover {
 	color: var(--selected-color);
@@ -363,4 +367,6 @@ tbody tr.Leased td.ip {
 tbody tr.Abandoned td.ip {
 	color: #c08080;
 }
-
+#leases tbody tr.multiple td {
+	opacity: 0.4;
+}
