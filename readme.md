@@ -19,7 +19,7 @@ It can easily handle a few class C subnets or more, depending on your HW.
 - Filtering, sorting and searching in the browser.
 - Requires read access to /var/db/dhcpd.leases and /etc/dhcpd.conf files.
 
-![Screenshot 1](screenshots/Screenshot_safari_macos_1.png)
+![Screenshot 1](screenshots/Screenshot_safari_macos_2.png)
 Safari on macOS
 
 ![Screenshot 3](screenshots/Screenshot_firefox_openbsd.png)
