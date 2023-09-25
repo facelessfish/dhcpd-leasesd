@@ -1,6 +1,7 @@
 #!/bin/sh
-version='1.1'
+version='1.2'
 # Copyright (c) 2022 Dinos Costanti <dinos@lab02.org>
+# https://github.com/facelessfish/dhcpd-leasesd
 # 
 # Permission to use, copy, modify, and distribute this software for any
 # purpose with or without fee is hereby granted, provided that the above
@@ -15,21 +16,26 @@ version='1.1'
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 set -e
+export PATH="/bin:/usr/bin:/sbin"
 
 listen='127.0.0.1'
 port='9130'
 leases_db='/var/db/dhcpd.leases'
 dhcpd_conf='/etc/dhcpd.conf'
-
 fifo='/tmp/dhcpd_leases_http'
+
 oui_tmp='/tmp/oui'
 oui_db='oui_ieee_'
+oui_downloading='/tmp/oui/downloading'
+oui_server='standards-oui.ieee.org'
+
 css='inc/styles.css'
 js='inc/javascript.js'
 
+
 self=$0
 merge=true
-help="dhcpd-leasesd [-b dhcpd.leases] [-c dhcpd.conf] [-t] [-v] [-u] [-f out_file]\n              [-d [-l listening_ip_address] [-p port]]"
+usage="dhcpd-leasesd [-b dhcpd.leases] [-c dhcpd.conf] [-t] [-v] [-u] [-f out_file]\n              [-d [-l listening_ip_address] [-p port]]"
 
 logo="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"
 
@@ -53,18 +59,20 @@ function mask_to_cidr {
 }
 
 
-# Download and convert the OUI database from https://standards-oui.ieee.org/ to $oui_tmp/$oui_db[0-f].csv
+# Download and convert the OUI database from $oui_server to $oui_tmp/$oui_db[0-f].csv
 function oui_update {
 	if  [ ! -f "${oui_tmp}/${oui_db}0.csv" ]; then
 		if [ ! -d "$oui_tmp" ]; then
 			mkdir "$oui_tmp"
+		else
+			rm ${oui_tmp}/*.csv 2>/dev/null || [[ $? == 1 ]]
 		fi
-		rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
+		> ${oui_downloading}
 		progress=0
-		print "$(date '+%H:%M:%S') Downloading from https://standards-oui.ieee.org"
+		print "$(date '+%H:%M:%S') Downloading from https://${oui_server}"
 		typeset -l index
 
-		print "GET / HTTP/1.1\nHost: standards-oui.ieee.org\nConnection: close\r\n" | nc -w 60 -c standards-oui.ieee.org 443 \
+		print "GET / HTTP/1.1\nHost: ${oui_server}\nConnection: close\r\n" | nc -w 60 -c standards-oui.ieee.org 443 \
 		| tr -d "\r" \
 		| grep "(hex)" \
 		| while read -r line; do
@@ -72,19 +80,19 @@ function oui_update {
 			index=${row%"${row#?}"}	#first char
 			print "$row" >> "${oui_tmp}/${oui_db}${index}.csv"
 
-			progress=$progress+1
-			if [ $progress -gt 300 ]; then
-				progress=0
-				print -n '.'
+			let progress=$progress+1
+			if [ $(($progress % 300)) -eq 0 ]; then 
+				print -n '.' 
 			fi
 		done
 		
 		set -A vendors $(cat $oui_tmp/* | wc -l)
 		print "\n${vendors[0]} Vendors"
-		if [ $vendors -lt 33000 ]; then
-			print "$(date '+%H:%M:%S') Oui download interrupted. Incomplete data deleted."
+		if [ $vendors -lt 34000 ]; then
 			rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
+			print "$(date '+%H:%M:%S') Oui download interrupted. Incomplete data deleted."
 		else
+			rm ${oui_downloading} 2>/dev/null || [[ $? == 1 ]]
 			print "$(date '+%H:%M:%S') Finished."
 		fi
 	fi
@@ -149,11 +157,7 @@ function dhcpd_leases_parse {
 							;;
 						'ends' )
 							ends="${row_data[2]} ${row_data[3]}"
-							if [[ "$now" > "$ends" ]]; then
-								state='Expired'
-							else
-								state='Leased'
-							fi 
+							[[ "$now" > "$ends" ]] && state='Expired' || state='Leased'
 							;;
 						'client-hostname' | 'hostname' )
 							hostname="${row#*'"'}"
@@ -188,19 +192,20 @@ function html_home_page {
 	html_subnets="$(dhcpd_conf_parse)"
 	html_leases="$(dhcpd_leases_parse)"
 	seconds=$(( $(date +%s) - $start ))
+	[ -f "${oui_downloading}" ] && vendor='Vendor: <i>db is downloading..</i>&nbsp;&nbsp;</i>' || vendor='Vendor'
 
 	cat <<EOF
 	<!DOCTYPE html>
 	<html>
 	<head>
 		<link rel="icon" href="$logo"/>
-		<title>dhcpd.leases dashboard</title>
+		<title>dhttpd.leases dashboard</title>
 		<style>$(cat $css)</style><script>$(cat $js)</script>
 	</head>
 	<body onload="init()">
 		<div id="main">
 			<div id="stats"> 
-				<img src="$logo"> <b>dhcpd.leases dashboard</b> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>) <b>Parsing&nbsp;time:</b><span>$seconds sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
+				<img src="$logo"> <b>dhcpd.leases dashboard</b> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>${seconds} sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
 			</div>
 			<div id="subnets">
 				$html_subnets
@@ -213,20 +218,19 @@ function html_home_page {
 				<tfoot></tfoot>
 			</table>
 			<div id="header">
-				<b>dhcpd.leases:</b>&nbsp;
+				<b>dhcpd.leases:</b>
 				<table id="menu" cellspacing=2>
 					<tr>
 						<td id="All" class="selected">All:<span id="leases_total"></span></td><td id="Leased">Leased:<span id="leases_leased"></span></td><td id="Expired">Expired:<span id="leases_expired">&nbsp;&nbsp;&nbsp;</span></td><td id="Abandoned">Abandoned:<span id="leases_abandoned"></span></td>
 					</tr>
-				</table>&nbsp;&nbsp; 
-				<div><input size=16 id="search" type="search" placeholder="Search.." title="Search leases (all columns)"></div>&nbsp;&nbsp;&nbsp; <b>rows:</b><span id="leases_showing">All</span>
-				<div id ="clear" class="button"> &#x2715; Clear</div>
+				</table>
+				&nbsp;&nbsp;&nbsp;<div><input size=16 id="search" type="search" placeholder="Search.." title="Search leases (all columns)"></div><div id ="clear" class="button"> &#x2715; Clear</div>
 			</div>
 			<div id=box>
 				<table id="leases">
 					<thead>
 						<tr>
-							<th>IP</th><th>Starts</th><th class="ASC">Ends</th><th>MAC</th><th>Hostname</th><th>Vendor</th>
+							<th>IP</th><th>Starts</th><th class="ASC">Ends</th><th>MAC</th><th>Hostname</th><th>$vendor</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -254,10 +258,14 @@ function http_server {
 	while true ; do {  
 		read line < $fifo
 		print "HTTP/1.1 200 OK\n"
-		html_home_page
 		if  $opt_vendor_lookup && [ ! -f "${oui_tmp}/${oui_db}0.csv" ]; then
+			if [ ! -d "$oui_tmp" ]; then
+				mkdir "$oui_tmp"
+			fi
 			$self -u >/dev/null &
+			> ${oui_downloading} # for current request
 		fi
+		html_home_page
 	}  | nc -lN $listen $port > $fifo
 	done
 }
@@ -300,6 +308,13 @@ function script_export {
 }
 
 
+
+# Redirect output if not running interactively
+if [ ! -t 0 ]; then
+	exec 1>/dev/null
+fi
+
+
 while getopts 'dhtuvf:l:p:b:c:' name; do
 	case $name in
 	f)	
@@ -324,10 +339,10 @@ while getopts 'dhtuvf:l:p:b:c:' name; do
 	c)
 		dhcpd_conf=$OPTARG ;;
 	h)	
-		print "${help}"
+		print "${usage}"
 		exit ;;
 	?)	
-		print "${help}"
+		print "${usage}"
 		exit 2 ;;
 	esac
 done
