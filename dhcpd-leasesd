@@ -1,5 +1,5 @@
 #!/bin/sh
-version='1.2'
+version='1.3'
 # Copyright (c) 2022 Dinos Costanti <dinos@lab02.org>
 # https://github.com/facelessfish/dhcpd-leasesd
 # 
@@ -205,7 +205,7 @@ function html_home_page {
 	<body onload="init()">
 		<div id="main">
 			<div id="stats"> 
-				<img src="$logo"> <b>dhcpd.leases dashboard</b> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>${seconds} sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
+				<img src="$logo"> <a href="https://github.com/facelessfish/dhcpd-leasesd" target="_blank"><b>dhcpd.leases dashboard</b></a> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>${seconds} sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
 			</div>
 			<div id="subnets">
 				$html_subnets
@@ -214,7 +214,9 @@ function html_home_page {
 				<thead>
 					<tr><td colspan=24><b>Leases / hour</b> ( <span>past <select name="bargraph_range" id="bargraph_range"><option value=1>24 hrs</option><option value=2>2 days</option><option value=3>3 days</option><option value=4>4 days</option><option value=7>1 week</option></select></span> )</td></tr>
 				</thead>
-				<tbody></tbody>
+				<tbody>
+					<tr><td></td></tr>
+				</tbody>
 				<tfoot></tfoot>
 			</table>
 			<div id="header">
