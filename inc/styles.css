@@ -283,6 +283,7 @@ a {
 #box {
 	overflow: hidden overlay;
 	width: fit-content;
+	scrollbar-gutter: stable;
 }
 @-moz-document url-prefix() {
 	#box {
@@ -367,6 +368,6 @@ tbody tr.Leased td.ip {
 tbody tr.Abandoned td.ip {
 	color: #c08080;
 }
-#leases tbody tr.multiple td {
+#leases tbody tr.recycled td {
 	opacity: 0.4;
 }
