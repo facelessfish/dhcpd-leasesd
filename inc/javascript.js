@@ -6,7 +6,6 @@ var graph_x_start = 0,
 
 
 function init() {
-	var ip_unique = {};
 
 	// Init subnets_db & subnet filtering
 	subnets.querySelectorAll('input[type=checkbox]').forEach((chk) => {
@@ -35,6 +34,8 @@ function init() {
 	leases_sort(2); // Ending time, desc
 
 	// leases
+	var ip_unique = {};
+
 	for ( const row of leases_rows ) {
 		const ip = ip_to_int(row.getElementsByClassName('ip')[0].textContent),
 			  ip_subnet = ip_in_subnet(ip),
@@ -43,16 +44,13 @@ function init() {
 		row.dataset.ip = ip;
 		row.dataset.subnet = ip_subnet;
 		row.dataset.starts = starts;
-		// subnets
-		subnets_db[ip_subnet].leases ++;
-		if ( state == 'leased' ) {
-			if ( ! ip_unique[ip] ) {
-				ip_unique[ip] = true;
-				subnets_db[ip_subnet][state] ++;
-			}
-		} else {
+
+		if ( ! ip_unique[ip] ) {
+			ip_unique[ip] = true;
 			subnets_db[ip_subnet][state] ++;
-		}	
+		} else {
+			row.classList.add('recycled');
+		}
 	}
 
 	search.addEventListener('input', () => {
@@ -213,11 +211,14 @@ function leases_sort(column) {
 		  reverse = ( headers[column].className == 'ASC' );
 	
 	let rows_sorted = Array.from(leases.tBodies[0].rows).sort( (row_a, row_b) => {
-		if ( ip ) return row_a.dataset.ip - row_b.dataset.ip;
+		if ( ip ) 
+			return row_a.dataset.ip - row_b.dataset.ip;
 		const td_a = row_a.cells[column].textContent;
-		if ( td_a == '' ) return 1;
+		if ( td_a == '' ) 
+			return 1;
 		const td_b = row_b.cells[column].textContent;
-		if ( td_b == '' ) return -1;
+		if ( td_b == '' ) 
+			return -1;
 		return td_a.localeCompare(td_b);
 	} );
 
@@ -239,10 +240,11 @@ function leases_filter(leases_state = false) {
 	const leases_rows = leases.tBodies[0].rows,
 		  search_text = search.value.toLowerCase(),
 		  menu_selected = menu.rows[0].getElementsByClassName('selected'),
-		  hour_filter = ( Object.keys(graph_hours_selected).length == 0 ),
-		  ip_unique = {};
+		  hour_filter = ( Object.keys(graph_hours_selected).length == 0 );
 
-	let head_leased = 0, head_expired = 0, head_abandoned = 0, showing = 0;
+	let showing = 0, 
+		leases_header = {'leased' : 0, 'expired': 0, 'abandoned': 0 };
+	
 	graph_y_db = [];
 
 	if ( ! leases_state ) {
@@ -253,52 +255,49 @@ function leases_filter(leases_state = false) {
 	}
 	
 	for ( const row of leases_rows ) {
+		const recycled = row.classList.contains('recycled')
 		let display = 'none';
+		
 		if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
-			// init Bargraph graph_y_db
-			let graph_hour = 0,
-				count = true;
+
+			// Bargraph init graph_y_db before hour_filtering. 
+			let graph_hour = -1;
 			if ( row.dataset.starts >= graph_x_start ) {
 				graph_hour = row.dataset.starts - graph_x_start;
-				if  ( ! graph_y_db[graph_hour] ) graph_y_db[graph_hour] = 0;
+				if  ( ! graph_y_db[graph_hour] ) {
+					graph_y_db[graph_hour] = 0;
+				}
+				if ( ! recycled ) {
+					graph_y_db[graph_hour] ++;
+				}
 			}
+
 			if ( hour_filter || graph_hours_selected[row.dataset.starts * 3600000] ) {
 				if ( ( leases_state == 'All' ) || ( row.classList[0] == leases_state ) ) {
 					display = 'table-row';
 					showing ++;
 				}
-				switch ( row.classList[0] ) {
-					case 'Leased':
-						if ( ! ip_unique[row.dataset.ip] ) {
-							ip_unique[row.dataset.ip] = true;
-							head_leased ++;
-							row.classList.remove('multiple');
-						} else {
-							count = false;
-							row.classList.add('multiple');
-						}
-						break;
-					case 'Expired':
-						head_expired ++;
-						break;
-					case 'Abandoned':
-						head_abandoned ++;
-						break;
+				if ( ! recycled ) {
+					leases_header[row.classList[0].toLowerCase()] ++;
 				}
 			}
-			if ( graph_hour && count ) graph_y_db[graph_hour] ++;
 		}
 		row.style.display =  display;
 	}
-
-	leases_total.textContent = head_leased + head_expired + head_abandoned;
-	leases_leased.textContent = head_leased;
-	leases_expired.textContent = head_expired;
-	leases_abandoned.textContent = head_abandoned;
+	header_update(leases_header);
 	leases_message.style.display = ( showing ) ? 'none' : 'table-footer-group';
 	leases.tHead.style.display = ( showing ) ? 'table-header-group' : 'none';
+	
+	// Bargraph color
 	document.documentElement.style.setProperty('--bargraph-bars', ( hour_filter ) ? 'var(--blue-color)' : 'var(--darkblue-color)' );
+
 	box.scrollTop = 0;
 }
 
 
+function header_update(leases_header) {
+	leases_total.textContent = leases_header['leased'] + leases_header['expired'] + leases_header['abandoned'];
+	leases_leased.textContent = leases_header['leased'] ;
+	leases_expired.textContent =  leases_header['expired'];
+	leases_abandoned.textContent = leases_header['abandoned'];
+}
