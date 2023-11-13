@@ -7,6 +7,11 @@ var graph_x_start = 0,
 
 function init() {
 
+	// Scroll leases table from anywhere
+	document.body.addEventListener('mousewheel', function (e) {
+		box.scrollTop += e.deltaY;
+	});
+
 	// Init subnets_db & subnet filtering
 	subnets.querySelectorAll('input[type=checkbox]').forEach((chk) => {
 		chk.addEventListener('change', () => {
