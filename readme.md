@@ -18,15 +18,16 @@ It can easily handle a few class C subnets or more, depending on your HW.
   data. Please note that Vendor lookup adds a lot to the processing time.
 - Filtering, sorting and searching in the browser.
 - Requires read access to /var/db/dhcpd.leases and /etc/dhcpd.conf files.
+- Can be safely started from rc.local (V1.2)
 
-![Screenshot 1](screenshots/Screenshot_safari_macos_2.png)
+![Screenshot 1](screenshots/Screenshot_V1.4_safari_macos_1.png)
 Safari on macOS
 
 ![Screenshot 3](screenshots/Screenshot_firefox_openbsd.png)
 Firefox on OpenBSD
 
 ![Screenshot 4](screenshots/Screenshot_iridium_openbsd.png)
-Iridium (Chromium) on OpenBSD
+Iridium (Chromium) on Openbsd
 
 
 ## Installation
@@ -60,6 +61,11 @@ $ dhcpd-leasesd.sh -dv -l <ip address to listen> -p <port>
     ```
     $ dhcpd-leasesd -dv -l 192.168.0.1
     ```
+    o start it in the background:
+    ```
+    $ dhcpd-leasesd -dv -l 192.168.0.1 &
+    ```
+
   - Using `tcpserver(1)`.  
     This option requires the ucspi-tcp package which contains the tcpsrver. 
     Most flexible option due to the tcpserver configuration options. Can easily
@@ -69,11 +75,11 @@ $ dhcpd-leasesd.sh -dv -l <ip address to listen> -p <port>
     $ tcpserver 192.168.0.1 9130 dhcpd-leasesd.sh -tv
     ```
   - As a `slowcgi(8)` script for `httpd(8)`.  
-   It should be possible to run it as a cgi but i havent tested it as it looks
+   It should be possible to run it as a cgi but i didnt test it as it looks
    like more trouble than its worth.  
-   At the very least the following commands must be copied to /bin in the 
+   At the very least the following commands will need to be copied to /bin in the 
    /var/www/ chroot:  
-   cat, date, grep, mkdir, mkfifo, nc, printf, rm, sh, tr, wc  
+   cat, date, grep, mkdir, mkfifo, nc, printf, rm, sh, tr, wc, pkill, pgrep  
    and then you'll have to copy ( and periodically update ) dhcpd.leases and
    dhcpd.conf to somewhere in the chroot.
 
@@ -108,6 +114,8 @@ Run without options will output HTML on stdout and exit.
 -f Merge the sh script, javascript and styles into out_file and exit. All other
    options are ignored.
 
+-k kill the script if running in the background and exit.
+
 Examples:
   $ dhcpd-leasesd.sh -d
 
@@ -116,4 +124,24 @@ Examples:
   $ dhcpd-leasesd -f out.sh 
 
   $ tcpserver 192.168.0.1 9130 dhcpd-leasesd.sh -tv
+
 ```
+
+
+## Changelog
+
+### V1.4
+- graph: alternate color of hour labels (per day).
+- added option -k to kill the script if its running in the background. Makes it easy to upgrade.
+- fixed wheel scroll event (mousewheel is deprecated)
+
+### V1.3
+- fixed a bug where the first bar of the bargraph would not show
+- improved handling of renewed leases
+- More code cleanup & bug fixes
+
+### v1.2
+- Better handling of background OUI db download.
+- UI improvements and code cleanup.
+- Visually indicate renewed active leases.
+- Starts fine from rc.local (diabled text output if not run from a terminal)
