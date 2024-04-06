@@ -2,13 +2,14 @@ const subnets_db = {};
 
 var graph_x_start = 0,
 	graph_y_db = [],
-	graph_hours_selected = {};
+	graph_hours_selected = {},
+	refreshed;
 
 
 function init() {
 
 	// Scroll leases table from anywhere
-	document.body.addEventListener('mousewheel', function (e) {
+	document.body.addEventListener('wheel', (e) => {
 		box.scrollTop += e.deltaY;
 	});
 
@@ -19,6 +20,7 @@ function init() {
 			leases_filter();
 			bargraph_draw();
 		});
+		
 		subnets_db[chk.dataset.subnet] = { 
 			'checkbox': chk, 
 			'mask': chk.dataset.mask, 
@@ -32,13 +34,13 @@ function init() {
 	});
 
 	//Init leases & populate subnets
-	const leases_rows = leases.tBodies[0].rows,
-		  refreshed = new Date(now.textContent);
-
+	const leases_rows = leases.tBodies[0].rows;
+	
+	refreshed = new Date(now.textContent);
 	graph_x_start = Math.floor(refreshed.getTime() / 3600000) - (bargraph_range.value * 24 ) + 1;
 	leases_sort(2); // Ending time, desc
 
-	// leases
+	// old leases of the same ip
 	var ip_unique = {};
 
 	for ( const row of leases_rows ) {
@@ -172,6 +174,7 @@ function bargraph_draw() {
 		const td = document.createElement('td'),
 			  time = new Date(( graph_x_start + i ) * 3600000),
 			  time_ts = time.getTime(),
+			  graph_hours_start = refreshed.getHours(),
 			  leases = ( graph_y_db[i] ) ? graph_y_db[i] : 0;
 		
 		td.title = 'New leases: ' + leases + "\n" + time.toLocaleString().replace(',', ' -');
@@ -195,12 +198,15 @@ function bargraph_draw() {
 		}
 		tbody_tr.appendChild(td);
 
+		// X axis labels
 		if ( ( i % col_span ) == 0 ) {
 			td.classList.add('line');
 			
 			const label = document.createElement("td");
 			label.colSpan = col_span;
 			label.style.textAlign = ( col_span == 1 ) ? 'center' : 'left';
+			if ( Math.floor( (i + graph_hours_start + 1 ) / 24) % 2 )
+				label.classList.add('even');
 			label.appendChild(document.createTextNode( time.getHours() + ':' + time.getMinutes().toString().padStart(2, '0') ));
 			tfoot_tr.appendChild(label);
 		}
