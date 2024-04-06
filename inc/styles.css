@@ -137,9 +137,11 @@ a {
 	padding-top: 0.5rem;
 	vertical-align: top;
 	height: 1rem;
+	color: var(--grey-color);
+}
+#bargraph tfoot td.even {
 	color: var(--txt1-color);
 }
-
 
 
 #subnets {
