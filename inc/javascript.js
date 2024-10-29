@@ -28,7 +28,8 @@ function init() {
 			'leases' : 0,
 			'leased' : 0,
 			'expired' : 0,
-			'abandoned' : 0
+			'abandoned' : 0,
+			'fixed' : 0
 		};
 		// TODO localstorage state
 	});
@@ -46,7 +47,7 @@ function init() {
 	for ( const row of leases_rows ) {
 		const ip = ip_to_int(row.getElementsByClassName('ip')[0].textContent),
 			  ip_subnet = ip_in_subnet(ip),
-			  starts = Math.floor(Date.parse(row.getElementsByClassName('starts')[0].textContent) / 3600000),
+			  starts = Math.floor(Date.parse(row.getElementsByClassName('starts')[0].textContent) / 3600000) || 0,
 			  state = row.classList[0].toLowerCase();
 		row.dataset.ip = ip;
 		row.dataset.subnet = ip_subnet;
@@ -81,7 +82,9 @@ function init() {
 	});
 
 	menu.querySelectorAll('td').forEach((td) => {
-		td.addEventListener('click', () => leases_filter(td.id));
+		if ( td.className != 'spacer' ) {
+			td.addEventListener('click', () => leases_filter(td.id));
+		}
 	});
 	// TODO localstorage state
 
@@ -153,6 +156,7 @@ function subnets_update() {
 
 		subnet_div.getElementsByClassName('s_leased')[0].textContent = subnets_db[key].leased;
 		subnet_div.getElementsByClassName('s_leased_percent')[0].textContent = s_leased_percent +'%';
+		subnet_div.getElementsByClassName('s_fixed')[0].textContent = subnets_db[key].fixed;
 		bar_graph.style.width = s_leased_percent + '%';
 		bar_graph.className = ( s_leased_percent < 75) ? 'bar_fg bar_green' : ( s_leased_percent > 89 ) ? 'bar_fg bar_red' : 'bar_fg bar_yellow';
 	}
@@ -254,7 +258,7 @@ function leases_filter(leases_state = false) {
 		  hour_filter = ( Object.keys(graph_hours_selected).length == 0 );
 
 	let showing = 0, 
-		leases_header = {'leased' : 0, 'expired': 0, 'abandoned': 0 };
+		leases_header = {'leased' : 0, 'expired': 0, 'abandoned': 0, 'fixed': 0 };
 	
 	graph_y_db = [];
 
@@ -268,8 +272,16 @@ function leases_filter(leases_state = false) {
 	for ( const row of leases_rows ) {
 		const recycled = row.classList.contains('recycled')
 		let display = 'none';
-		
-		if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
+
+		if ( row.classList[0] == 'Fixed' ) {
+
+			if ( leases_state == 'Fixed' ) {
+				display = 'table-row';
+				showing ++;
+			}
+			leases_header['fixed'] ++;
+
+		} else if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
 
 			// Bargraph init graph_y_db before hour_filtering. 
 			let graph_hour = -1;
@@ -293,22 +305,19 @@ function leases_filter(leases_state = false) {
 				}
 			}
 		}
-		row.style.display =  display;
+		row.style.display = display;
 	}
-	header_update(leases_header);
-	leases_message.style.display = ( showing ) ? 'none' : 'table-footer-group';
-	leases.tHead.style.display = ( showing ) ? 'table-header-group' : 'none';
-	
-	// Bargraph color
-	document.documentElement.style.setProperty('--bargraph-bars', ( hour_filter ) ? 'var(--blue-color)' : 'var(--darkblue-color)' );
 
-	box.scrollTop = 0;
-}
-
-
-function header_update(leases_header) {
 	leases_total.textContent = leases_header['leased'] + leases_header['expired'] + leases_header['abandoned'];
 	leases_leased.textContent = leases_header['leased'] ;
 	leases_expired.textContent =  leases_header['expired'];
 	leases_abandoned.textContent = leases_header['abandoned'];
+	leases_fixed.textContent = leases_header['fixed'];
+	// no rows
+	leases_message.style.display = ( showing ) ? 'none' : 'table-footer-group';
+	leases.tHead.style.display = ( showing ) ? 'table-header-group' : 'none';
+	// Bargraph color
+	document.documentElement.style.setProperty('--bargraph-bars', ( hour_filter ) ? 'var(--blue-color)' : 'var(--darkblue-color)' );
+
+	box.scrollTop = 0;
 }
