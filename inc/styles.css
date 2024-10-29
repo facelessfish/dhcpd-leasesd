@@ -256,6 +256,11 @@ a {
 #menu td.selected {
 	font-weight: bold;
 }
+#menu td.spacer {
+	font-weight: bold;
+	cursor: default;
+	padding: 0;
+}
 #All {
 	background-color: var(--darkblue-color);
 }
@@ -280,6 +285,13 @@ a {
 #Abandoned.selected {
 	background-color: #613131;
 }
+#Fixed {
+	background-color: #414131;
+}
+#Fixed.selected {
+	background-color: #616131;
+}
+
 
 /* Leases Table */
 #box {
@@ -369,6 +381,9 @@ tbody tr.Leased td.ip {
 }
 tbody tr.Abandoned td.ip {
 	color: #c08080;
+}
+tbody tr.Fixed td.ip {
+	color: #c0c080;
 }
 #leases tbody tr.recycled td {
 	opacity: 0.4;
