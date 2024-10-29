@@ -1,5 +1,5 @@
 #!/bin/sh
-version='1.4'
+version='1.5'
 # Copyright (c) 2022 Dinos Costanti <dinos@lab02.org>
 # https://github.com/facelessfish/dhcpd-leasesd
 # 
@@ -22,11 +22,12 @@ listen='127.0.0.1'
 port='9130'
 leases_db='/var/db/dhcpd.leases'
 dhcpd_conf='/etc/dhcpd.conf'
+log_file='/tmp/dhcpd_leases.log'
 fifo='/tmp/dhcpd_leases_http'
 
 oui_tmp='/tmp/oui'
 oui_db='oui_ieee_'
-oui_downloading='/tmp/oui/downloading'
+oui_downloading="${oui_tmp}/downloading"
 oui_server='standards-oui.ieee.org'
 
 css='inc/styles.css'
@@ -42,6 +43,19 @@ logo="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 17
 opt_vendor_lookup=false
 opt_server=false
 opt_header=false
+
+
+
+# Print on terminal if exists, else log
+if [ -t 0 ]; then
+	function lprint {
+		print -n $1
+	}
+else 
+	function lprint {
+		print -n $1 >> $log_file
+	}
+fi
 
 
 # IP functions
@@ -69,7 +83,7 @@ function oui_update {
 		fi
 		> ${oui_downloading}
 		progress=0
-		print "$(date '+%H:%M:%S') Downloading from https://${oui_server}"
+		lprint "$(date '+%Y-%m-%d %H:%M:%S') Downloading from https://${oui_server}\n"
 		typeset -l index
 
 		print "GET / HTTP/1.1\nHost: ${oui_server}\nConnection: close\r\n" | nc -w 60 -c standards-oui.ieee.org 443 \
@@ -82,57 +96,89 @@ function oui_update {
 
 			let progress=$progress+1
 			if [ $(($progress % 300)) -eq 0 ]; then 
-				print -n '.' 
+				lprint '.' 
 			fi
 		done
 		
 		set -A vendors $(cat $oui_tmp/* | wc -l)
-		print "\n${vendors[0]} Vendors"
-		if [ $vendors -lt 34000 ]; then
+		lprint "\n${vendors[0]} Vendors\n"
+		if [ $vendors -lt 36300 ]; then
 			rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
-			print "$(date '+%H:%M:%S') Oui download interrupted. Incomplete data deleted."
+			lprint "$(date '+%Y-%m-%d %H:%M:%S') Oui download interrupted. Incomplete data deleted.\n"
 		else
 			rm ${oui_downloading} 2>/dev/null || [[ $? == 1 ]]
-			print "$(date '+%H:%M:%S') Finished."
+			lprint "$(date '+%Y-%m-%d %H:%M:%S') Finished.\n"
 		fi
+	fi
+}
+
+
+function oui_lookup {
+	IFS=':'; set -- $1; unset IFS
+	oui_data=$(grep -iF -m 1 ${1}-${2}-${3} ${oui_tmp}/${oui_db}${1%"${1#?}"}.csv 2>/dev/null) || true
+	if [ ! "$oui_data" = '' ]; then
+		print "${oui_data#*'|'}"
 	fi
 }
 
 
 function dhcpd_conf_parse {
 	IFS="${IFS};"
-	typeset -U ips
-	subnet_ips=0
-	ranges='<br>'
-	first=false
+	subnets=''; typeset -U ips; subnet_ips=0; ranges='<br>'
+	hosts=''; host=''; fixed_address=''; hardware=''; vendor=''
 
 	while read -r line; do
 		row="${line%'#'*}"
-		if [ ! "$row" = '' ]; then
+		if [ ! "${row}" = '' ]; then
 			set -A row_data $row
 			case "${row_data[0]}" in 
 				'subnet' )
-					if $first; then
-						print "<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0</span>)${ranges}</p></div>"
-						subnet_ips=0;
-						ranges='<br>'
+					# data for prev subnet if exists
+					if [ ! "${subnets}" = '' ]; then
+						subnets="${subnets}<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0%</span>) Fixed:<span class=\"s_fixed\">0</span>${ranges}</p></div>"
+						subnet_ips=0; ranges='<br>'
 					fi
-					print "<div id="s_$(ip_to_int ${row_data[1]})"><input type=\"checkbox\" data-subnet=\"$(ip_to_int ${row_data[1]})\" data-mask=\"$(ip_to_int ${row_data[3]})\" checked><b>Subnet:</b><span>${row_data[1]}</span>/<span>$(mask_to_cidr ${row_data[3]})</span><br>"
-					first=true
+					# subnet header
+					subnets="${subnets}""<div id="s_$(ip_to_int ${row_data[1]})"><input type=\"checkbox\" data-subnet=\"$(ip_to_int ${row_data[1]})\" data-mask=\"$(ip_to_int ${row_data[3]})\" checked><b>Subnet:</b><span>${row_data[1]}</span>/<span>$(mask_to_cidr ${row_data[3]})</span><br>"
 					;;
 				'range' )
+					# ranges for current subnet
 					let ips=$(ip_to_int ${row_data[2]})-$(ip_to_int ${row_data[1]})+1
 					let subnet_ips=$subnet_ips+$ips;
-					ranges="${ranges}RG:<span>${row_data[1]}</span>-<span>${row_data[2]}</span>:<span>${ips}</span><br>"
+					ranges="${ranges}\nRG:<span>${row_data[1]}</span>-<span>${row_data[2]}</span>:<span>${ips}</span><br>"
+					;;
+				'host' )
+					# data for prev host
+					if [ ! "${host}" = '' ]; then
+						hosts="${hosts}<tr class=\"Fixed\"><td class=\"ip\">${fixed_address}</td><td class=\"starts\"></td><td class=\"ends\"></td><td class=\"mac\">${hardware}</td><td class=\"hostname\">${host}</td><td class=\"vendor\">$vendor</td></tr>"
+						hardware=''; fixed_address=''; vendor=''
+					fi
+					host="${row_data[1]}"
+					;;
+				'hardware' )
+					hardware="${row_data[2]}"
+					if $opt_vendor_lookup; then
+						vendor="$(oui_lookup $hardware)"
+					fi
+					;;
+				'fixed-address' )
+					fixed_address="${row_data[1]}"
 					;;
 			esac
 		fi
 	done < $dhcpd_conf
-	
-	if $first; then
-		print "<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0%</span>)${ranges}</p></div>"
+	# data for last subnet
+	if [ ! "${subnets}" = '' ]; then
+		subnets="${subnets}<div class=\"bar_bg\"><div class=\"bar_fg\"></div></div><p>IPs:<span class=\"s_ips\">${subnet_ips}</span> Leased:<span class=\"s_leased\">0</span>(<span class=\"s_leased_percent\">0%</span>) Fixed:<span class=\"s_fixed\">0</span>${ranges}</p></div>"
 	fi
+	# data for last host
+	if [ ! "${host}" = '' ]; then
+		hosts="${hosts}<tr class=\"Fixed\"><td class=\"ip\">${fixed_address}</td><td class=\"starts\"></td><td class=\"ends\"></td><td class=\"mac\">${hardware}</td><td class=\"hostname\">${host}</td><td class=\"vendor\">$vendor</td></tr>"
+	fi
+	#return 2 variables: dhcpd_conf_hosts and dhcpd_conf_subnets
+	print "dhcpd_conf_hosts='"$hosts"'; dhcpd_conf_subnets='"$subnets"'"
 }
+
 
 
 function dhcpd_leases_parse {
@@ -166,11 +212,7 @@ function dhcpd_leases_parse {
 						'hardware' )
 							mac="${row_data[2]%';'*}"
 							if $opt_vendor_lookup; then
-								IFS=':'; set -- $mac; unset IFS
-								oui_data=$(grep -iF -m 1 ${1}-${2}-${3} ${oui_tmp}/${oui_db}${1%"${1#?}"}.csv 2>/dev/null) || true
-								if [ ! "$oui_data" = '' ]; then
-									vendor="${oui_data#*'|'}"
-								fi
+								vendor="$(oui_lookup $mac)"
 							fi
 							;;
 						"abandoned;" )
@@ -189,8 +231,8 @@ function dhcpd_leases_parse {
 function html_home_page {
 	now="$(date -u '+%Y/%m/%d %H:%M:%S')"
 	start=$(date +%s)
-	html_subnets="$(dhcpd_conf_parse)"
-	html_leases="$(dhcpd_leases_parse)"
+	eval $(dhcpd_conf_parse) # returns $dhcpd_conf_hosts, $dhcpd_conf_subnets
+	html_leases="$(dhcpd_leases_parse)${dhcpd_conf_hosts}"
 	seconds=$(( $(date +%s) - $start ))
 	[ -f "${oui_downloading}" ] && vendor='Vendor: <i>db is downloading..</i>&nbsp;&nbsp;</i>' || vendor='Vendor'
 
@@ -208,7 +250,7 @@ function html_home_page {
 				<a href="https://github.com/facelessfish/dhcpd-leasesd" target="_blank"><img src="$logo"></a>&nbsp; <b>dhcpd.leases dashboard</b> ${version}&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">$now</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>${seconds} sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
 			</div>
 			<div id="subnets">
-				$html_subnets
+				$dhcpd_conf_subnets
 			</div>
 			<table id="bargraph">
 				<thead>
@@ -223,7 +265,7 @@ function html_home_page {
 				<b>dhcpd.leases:</b>
 				<table id="menu" cellspacing=2>
 					<tr>
-						<td id="All" class="selected">All:<span id="leases_total"></span></td><td id="Leased">Leased:<span id="leases_leased"></span></td><td id="Expired">Expired:<span id="leases_expired">&nbsp;&nbsp;&nbsp;</span></td><td id="Abandoned">Abandoned:<span id="leases_abandoned"></span></td>
+						<td id="All" class="selected">All:<span id="leases_total"></span></td><td id="Leased">Leased:<span id="leases_leased"></span></td><td id="Expired">Expired:<span id="leases_expired">&nbsp;&nbsp;&nbsp;</span></td><td id="Abandoned">Abandoned:<span id="leases_abandoned"></span></td><td class="spacer">&nbsp;&nbsp;&nbsp;</td><td id="Fixed">Fixed:<span id="leases_fixed"></span></td>
 					</tr>
 				</table>
 				&nbsp;&nbsp;&nbsp;<div><input size=16 id="search" type="search" placeholder="Search.." title="Search leases (all columns)"></div><div id ="clear" class="button"> &#x2715; Clear</div>
@@ -251,7 +293,7 @@ EOF
 
 
 function http_server {
-	print "Listening on ${listen}:${port}"
+	lprint "$(date '+%Y-%m-%d %H:%M:%S') Listening on ${listen}:${port}\n"
 	# Make fifo
 	if  [ ! -p "$fifo" ] ; then
 		mkfifo $fifo
@@ -265,7 +307,7 @@ function http_server {
 				mkdir "$oui_tmp"
 			fi
 			$self -u >/dev/null &
-			> ${oui_downloading} # for current request
+			> ${oui_downloading} # Downloading msg for current request
 		fi
 		html_home_page
 	}  | nc -lN $listen $port > $fifo
@@ -275,7 +317,7 @@ function http_server {
 
 function script_export {
 	file=$1;
-	print "Merging script, javascript and styles into: $file"
+	lprint "Merging script, javascript and styles into: $file\n"
 	> $file
 	IFS=''
 
@@ -302,19 +344,14 @@ function script_export {
 			fi
 		done < $self
 	else 
-		print "Cant merge a merged script (${self})."
+		lprint "Cant merge a merged script (${self}).\n"
 		exit
 	fi
 	chmod +x $file
-	print 'Done.'
+	lprint "Done.\n"
 }
 
 
-
-# Redirect output if not running interactively
-if [ ! -t 0 ]; then
-	exec 1>/dev/null
-fi
 
 
 while getopts 'dhtuvkf:l:p:b:c:' name; do
@@ -345,10 +382,10 @@ while getopts 'dhtuvkf:l:p:b:c:' name; do
 	c)
 		dhcpd_conf=$OPTARG ;;
 	h)	
-		print "${usage}"
+		lprint "${usage}\n"
 		exit ;;
 	?)	
-		print "${usage}"
+		lprint "${usage}\n"
 		exit 2 ;;
 	esac
 done
@@ -360,8 +397,8 @@ if $opt_vendor_lookup; then
 	oui_update
 fi
 
-# Server using buildin nc server
-# ./dhcpd-leasesd  -dv -b dhcpd.leases -c dhcpd.conf -l 192.168.5.11 -p 9130
+# Serve using buildin nc server
+# ./dhcpd-leasesd  -dv -b dhcpd.leases -c dhcpd.conf -l 192.168.5.11
 if $opt_server; then
 	http_server
 	exit
@@ -374,5 +411,10 @@ if $opt_header; then
 fi
 
 # CGI mode
+# Output content-type if running as a cgi
+if [ ! -t 0 ]; then
+	print "Content-type: text/html\n\n";
+fi
+
 html_home_page
 
