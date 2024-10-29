@@ -36,6 +36,7 @@ Iridium (Chromium) on OpenBSD
 Starting with V1.5 the merged verion of the script (single file server) will be available in the releases. Just download that, gunzip it and move it to `/usr/local/sbin/` or somewhere in your $PATH and you are done.
 ```
   $ gunzip dhcpd-leasesd.gz
+  $ chmod +x dhcpd-leasesd.sh
   $ mv dhcpd-leasesd.sh /usr/local/sbin/
 ```
 You can still use the unmerged files if you want to:
