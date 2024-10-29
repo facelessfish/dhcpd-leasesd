@@ -1,12 +1,12 @@
 # dhcpd.leases dashboard
 I was looking for a simple way to monitor the `dhcpd(8)` leases, subnet utilization
 and generally the state of the `OpenBSD` dhcpd server but I couldn't find any
-tool suitable for my needs. Most options are an overkill for the small APU 
-routers that I need it for. So I made this:  
-A simple dashboard for the `dhcpd.leases` file of the OpenBSD dhcpd server
-that is very easy to deploy and use.  
-Basically all this dashboard does is present the data in dhcpd.leases plus some
-data from `dhcpd.conf` (currently only subnets and ranges) in a user friendly way
+tool suitable for my needs. Most options are an overkill for small networks and small routers like the APU, ODROID, Protectli etc.  
+
+**Dhcpd-leasesd** is a simple dashboard for the `dhcpd.leases` file of the OpenBSD dhcpd server
+that is very easy to install and use.  
+Basically all this dashboard does is present the data in `dhcpd.leases` plus some
+data from `dhcpd.conf` (subnets, ranges and fixed addresses) in a user friendly way
 including full dynamic searching, filtering and sorting.
 It can easily handle a few class C subnets or more, depending on your HW. 
 
@@ -15,22 +15,30 @@ It can easily handle a few class C subnets or more, depending on your HW.
   server or cgi script that is easy to deploy. This is the preferred way of 
   using this script.
 - Can optionally do MAC address Vendor lookup using the standards-oui.ieee.org 
-  data. Please note that Vendor lookup adds a lot to the processing time.
+  data. Please note that Vendor lookup adds to the processing time.
+- Displays IPs from both the dhcpd IP pool and fixed addresses (IP reservations).
 - Filtering, sorting and searching in the browser.
 - Requires read access to /var/db/dhcpd.leases and /etc/dhcpd.conf files.
-- Can be safely started from rc.local (V1.2)
+- Can be started from rc.local
 
-![Screenshot 1](screenshots/Screenshot_V1.4_safari_macos_1.png)
+![Screenshot 1](screenshots/V1.5_macos_safari_1.png)
+![Screenshot 1](screenshots/V1.5_macos_safari_2.png)
 Safari on macOS
 
-![Screenshot 3](screenshots/Screenshot_firefox_openbsd.png)
+![Screenshot 3](screenshots/V1.5_openbsd_firefox.png)
 Firefox on OpenBSD
 
-![Screenshot 4](screenshots/Screenshot_iridium_openbsd.png)
+![Screenshot 4](screenshots/V1.5_openbsd_iridium_1.png)
 Iridium (Chromium) on OpenBSD
 
 
 ## Installation
+Starting with V1.5 the merged verion of the script (single file server) will be available in the releases. Just download that, gunzip it and move it to `/usr/local/sbin/` or somewhere in your $PATH and you are done.
+```
+  $ gunzip dhcpd-leasesd.gz
+  $ mv dhcpd-leasesd.sh /usr/local/sbin/
+```
+You can still use the unmerged files if you want to:
 ```
 $ git clone https://github.com/facelessfish/dhcpd-leasesd (or Code/Download zip
 and unzip)
@@ -38,18 +46,24 @@ $ cd dhcpd-leasesd
 $ chmod +x dhcpd-leasesd
 $ ./dhcpd-leasesd -dv -l <ip address to listen>
 ```
+To generate and install the single file server:
+```
+$ ./dhcpd-leasesd -f dhcpd-leasesd.sh
+$ mv dhcpd-leasesd.sh /usr/local/sbin/
+```
+## Running
+```
+$ dhcpd-leasesd.sh -dv -l <ip address to listen>
+```
+
 On first run (or after a reboot or after /tmp is cleared by the system)
 it will download the OUI data and cache it in /tmp if -v is specified.
 Wait for the download to finish and then visit:
 `http://<ip address>:9130` with a fairly recent browser.  
-Tested on Safari, Firefox and Chromium.
+Tested in Safari, Firefox and Chromium.
 
-### To generate, install and start the single file server:
-```
-$ ./dhcpd-leasesd -f dhcpd-leasesd.sh
-$ mv dhcpd-leasesd.sh /usr/local/sbin/
-$ dhcpd-leasesd.sh -dv -l <ip address to listen> -p <port>
-```
+## Upgrade
+Just overwrite the current version of the script with the new one and run `dhcpd-leasesd.sh -k` to kill the script if it's running in the background. Then start `dhcpd-leasesd.sh` with the same parameters as the old version. 
 
 ## The dashboard can be served in 2 (+1) ways.
 
@@ -61,7 +75,7 @@ $ dhcpd-leasesd.sh -dv -l <ip address to listen> -p <port>
     ```
     $ dhcpd-leasesd -dv -l 192.168.0.1
     ```
-    o start it in the background:
+    to start it in the background:
     ```
     $ dhcpd-leasesd -dv -l 192.168.0.1 &
     ```
@@ -74,16 +88,32 @@ $ dhcpd-leasesd.sh -dv -l <ip address to listen> -p <port>
     ```
     $ tcpserver 192.168.0.1 9130 dhcpd-leasesd.sh -tv
     ```
+
   - As a `slowcgi(8)` script for `httpd(8)`.  
-   It should be possible to run it as a cgi but i didnt test it as it looks
-   like more trouble than its worth.  
-   At the very least the following commands will need to be copied to /bin in the 
-   /var/www/ chroot:  
-   cat, date, grep, mkdir, mkfifo, nc, printf, rm, sh, tr, wc, pkill, pgrep  
-   and then you'll have to copy ( and periodically update ) dhcpd.leases and
-   dhcpd.conf to somewhere in the chroot.
+   it is possible to partially run the script as a cgi but it currently lacks vendor lookup support and it's likely more trouble than it's worth. Vendor lookup depends on `nc(1)` and running it in the `httpd(8)` chroot looks messy. I'll look into it at some point.
+    #### Copy the following commands to the chroot
+    ```
+    $ cp /bin/date /var/www/bin/
+    $ cp /bin/cat /var/www/bin/
+    $ cp /bin/sh /var/www/bin/
+    ```
+    #### then copy the config and leases files to the chroot (create the folders if they dont exist)
+    ```
+    $ cp /etc/dhcpd.conf /var/www/etc/
+    $ cp /var/db/dhcpd.leases /var/www/var/db/
+    ```
+    and then copy the merged script to `/var/www/cgi-bin/dhcpd-leasesd.sh`
+    #### Finally edit your server in /etc/httpd.conf to include something like:
+    ```
+     location "/cgi-bin/*" {
+        fastcgi socket "/run/slowcgi.sock"
+        root "/"
+    }
+    ```
+    Start the `httpd(8)` and the `slowcgi(8)` servers and visit `http://<your_server>/cgi-bin/dhcpd-leasesd.sh`.
+    You can use `httpd -dvvv`,  `slowcgi -dv` and `/tmp/dhcpd_leases.log` to debug if you need to.  
 
-
+    After it's running you can set up `cron(8)` to periodically update `/var/www/etc/dhcp.conf` and `/var/www/var/db/dhcpd.leases`.
 
 ## Usage
 ```
@@ -119,9 +149,9 @@ Run without options will output HTML on stdout and exit.
 Examples:
   $ dhcpd-leasesd.sh -d
 
-  $ dhcpd-leasesd.sh -dv -b ./dhcpd.leases -c ./dhcpd.conf -l 0.0.0.0 -p 9130
+  $ dhcpd-leasesd.sh -dv -b ./dhcpd.leases -c ./dhcpd.conf -l 192.168.0.1 -p 9130
 
-  $ dhcpd-leasesd -f out.sh 
+  $ dhcpd-leasesd -f dhcpd-leasesd.sh 
 
   $ tcpserver 192.168.0.1 9130 dhcpd-leasesd.sh -tv
 
@@ -129,6 +159,11 @@ Examples:
 
 
 ## Changelog
+### V1.5
+- Added support for Fixed IP addresses
+- Added logging to /tmp/dhcpd_leases.log if running in the background
+- Running as an httpd(8) cgi is somewhat supported but lacks Vendor Lookup
+- Updated Readme
 
 ### V1.4
 - graph: alternate color of hour labels (per day).
