@@ -33,7 +33,7 @@ Iridium (Chromium) on OpenBSD
 
 
 ## Installation
-Starting with V1.5 the merged verion of the script (single file server) will be available in the releases. Just download that, gunzip it and move it to `/usr/local/sbin/` or somewhere in your $PATH and you are done.
+Starting with V1.5 the merged verion of the script (single file server) will be available in the releases. Just download that, gunzip it and move it to `/usr/local/sbin/` or to somewhere in your $PATH and you are done.
 ```
   $ gunzip dhcpd-leasesd.gz
   $ chmod +x dhcpd-leasesd.sh
