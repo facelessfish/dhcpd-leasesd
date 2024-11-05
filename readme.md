@@ -64,7 +64,7 @@ Wait for the download to finish and then visit:
 Tested in Safari, Firefox and Chromium.
 
 ## Upgrade
-Just overwrite the current version of the script with the new one and run `dhcpd-leasesd.sh -k` to kill the script if it's running in the background. Then start `dhcpd-leasesd.sh` with the same parameters as the old version. 
+Overwrite the old version of the script with the new one and run `dhcpd-leasesd.sh -k` to kill it, if it's running in the background. Then start `dhcpd-leasesd.sh` with the same parameters as the old version. 
 
 ## The dashboard can be served in 2 (+1) ways.
 
