@@ -273,35 +273,38 @@ function leases_filter(leases_state = false) {
 		const recycled = row.classList.contains('recycled')
 		let display = 'none';
 
-		if ( row.classList[0] == 'Fixed' ) {
+		if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
 
-			if ( leases_state == 'Fixed' ) {
-				display = 'table-row';
-				showing ++;
-			}
-			leases_header['fixed'] ++;
+			if ( row.classList[0] == 'Fixed' ) {
 
-		} else if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
-
-			// Bargraph init graph_y_db before hour_filtering. 
-			let graph_hour = -1;
-			if ( row.dataset.starts >= graph_x_start ) {
-				graph_hour = row.dataset.starts - graph_x_start;
-				if  ( ! graph_y_db[graph_hour] ) {
-					graph_y_db[graph_hour] = 0;
-				}
-				if ( ! recycled ) {
-					graph_y_db[graph_hour] ++;
-				}
-			}
-
-			if ( hour_filter || graph_hours_selected[row.dataset.starts * 3600000] ) {
-				if ( ( leases_state == 'All' ) || ( row.classList[0] == leases_state ) ) {
+				if ( leases_state == 'Fixed' ) {
 					display = 'table-row';
 					showing ++;
 				}
-				if ( ! recycled ) {
-					leases_header[row.classList[0].toLowerCase()] ++;
+				leases_header['fixed'] ++;
+				
+			} else {
+
+				// Bargraph init graph_y_db before hour_filtering. 
+				let graph_hour = -1;
+				if ( row.dataset.starts >= graph_x_start ) {
+					graph_hour = row.dataset.starts - graph_x_start;
+					if  ( ! graph_y_db[graph_hour] ) {
+						graph_y_db[graph_hour] = 0;
+					}
+					if ( ! recycled ) {
+						graph_y_db[graph_hour] ++;
+					}
+				}
+
+				if ( hour_filter || graph_hours_selected[row.dataset.starts * 3600000] ) {
+					if ( ( leases_state == 'All' ) || ( row.classList[0] == leases_state ) ) {
+						display = 'table-row';
+						showing ++;
+					}
+					if ( ! recycled ) {
+						leases_header[row.classList[0].toLowerCase()] ++;
+					}
 				}
 			}
 		}
