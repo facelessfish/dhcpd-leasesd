@@ -1,0 +1,1021 @@
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"/>
+		<title>dhttpd.leases dashboard</title>
+<style>
+:root {
+	color-scheme: dark;
+
+	--bg-color: #131313;
+	--bg1-color: #181818;
+	--bg2-color: #191919; 
+	--txt-color: #e0e0e0;
+	--txt1-color: #b4b4b4;
+	--border-color: #272727;
+	--selected-color: #f0f0f0;
+	--grey-color: #717171;
+	--subnet-color: #242524;
+	--blue-color: #2b43ad;
+	--lightblue-color: #395691;
+	--darkblue-color: #253151;
+	--bargraph-axis: #474747;
+	--bargraph-bars: var(--blue-color);
+}
+
+
+html {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+	font-size: 0.9rem;
+}
+body {
+	color: var(--txt-color);
+	background-color: var(--bg-color);
+	margin: 0;
+	padding: 0px 1rem;
+	height: 100vh;
+}
+@supports (-webkit-touch-callout: none) {
+	body {
+		max-height: -webkit-fill-available; /* iOS */
+	}
+}
+a {
+	color: inherit;
+	text-decoration: inherit;
+}
+
+
+#main {
+	display: flex;
+	flex-flow: column;
+	height: 100%;
+	width: fit-content;
+	margin: 0 auto;
+}
+
+
+#stats {
+	width: 100%;
+	display: inline-block;
+	padding: 0.5rem 0;
+	background-color: var(--bg-color);
+}
+#stats span, #subnets div span, #header span, #menu td span, #bargraph span {
+	color: var(--txt1-color);
+	white-space: nowrap;
+	padding: 0 0.3rem 0 0.3rem;
+}
+.button {
+	background-color: var(--darkblue-color);
+	font-weight: normal !important;
+	display: inline-block;
+	font-weight: normal;
+}
+.button:hover {
+	background-color: var(--blue-color);
+	color: var(--selected-color);
+}
+#stats img {
+	height: 1rem;
+}
+#refresh {
+	float: right;
+}
+
+
+#bargraph {
+	display: inline-table;
+	table-layout: fixed;
+	font-size: 0.75rem;
+	background-color: var(--bg1-color);
+	border-collapse: collapse;
+	border-spacing: 0;
+	border-top: 1px solid var(--border-color);
+	border-bottom: 1px solid var(--border-color);
+	margin-bottom: 0.5rem;
+}
+#bargraph tbody td {
+	position: relative;
+	height: 6rem;
+	color: var(--grey-color);
+	padding: 0;
+	text-align: center;
+	vertical-align: bottom;
+	user-select: none;
+	-webkit-user-select: none;
+	border-bottom: 1px solid var(--bargraph-axis);
+	background-image: repeating-linear-gradient( to top, transparent, transparent calc(50% - 0.5rem - 2px), #222530 calc(50% - 0.5rem) );
+}
+#bargraph tbody td div {
+	width: 70%;
+	height: 0;
+	margin: 0 15% 0 15%;
+	background-color: var(--bargraph-bars);
+}
+#bargraph tbody td.has_leases {
+	cursor: pointer;
+}
+#bargraph tbody td.selected, #bargraph tbody td.has_leases:hover {
+	color: var(--txt-color);
+}
+#bargraph tbody td.has_leases:hover div {
+	background-color: var(--lightblue-color);
+}
+#bargraph tbody td.selected div {
+	background-color: var(--blue-color) !important;
+}
+#bargraph tbody td.line::after {
+	content: '|';
+	font-weight: bold;
+	position: absolute;
+	color: var(--bargraph-axis);
+	font-size: 0.5rem;
+	bottom: -0.57rem;
+}
+
+#bargraph thead td {
+	height: 1rem;
+	font-size: 1rem;
+	padding: 0 0 0.2rem 0.5rem;
+}
+#bargraph tfoot td {
+	padding-top: 0.5rem;
+	vertical-align: top;
+	height: 1rem;
+	color: var(--grey-color);
+}
+#bargraph tfoot td.even {
+	color: var(--txt1-color);
+}
+
+
+#subnets {
+	width: 100%;
+	margin-bottom: 0.5rem;
+	background-color: var(--bg1-color);
+	border-top: 1px solid var(--border-color);
+	border-bottom: 1px solid var(--border-color);
+}
+#subnets p {
+	font-size: 0.85rem;
+	margin: 0.6rem 0 0 0;
+}
+#subnets input[type='checkbox'] {
+	cursor: pointer;
+	margin-right: 0.5rem;
+	accent-color: var(--lightblue-color);
+	transform: scale(1.3);
+}
+#subnets div {
+	display: inline-block;
+	margin: 0.5rem 0 0.5rem 0.5rem;
+	padding: 0.5rem;
+	border: 1px solid var(--border-color);
+	background-color: var(--subnet-color);
+	border-radius: 0.4rem;
+	vertical-align: top;
+}
+#subnets div .bar_bg, #subnets div .bar_fg {
+	display: block;
+	padding: 0;
+	height: 0.6rem;
+}
+#subnets div .bar_bg {
+	width: 100%;
+	margin: 0.4rem 0; 
+	background-color: var(--bg-color);
+}
+#subnets div .bar_fg {
+	width: 0; 
+	margin: 0;
+	border: 0;
+}
+#subnets div .bar_green {
+	background-color: #318131;
+}
+#subnets div .bar_yellow {
+	background-color: #818131;
+}
+#subnets div .bar_red {
+	background-color: #813131;
+}
+
+
+
+/* Leases Header */
+#header {
+	padding-top: 0.2rem;
+}
+#header div {
+	display: inline-block;
+	vertical-align: bottom;
+	font-weight: bold;
+}
+#search {
+	background-color: var(--bg2-color);
+	color: var(--txt-color);
+	font-size: 1rem;
+	padding: 0.4rem 0.5rem;
+	margin: 0.2rem 0 2px 0;
+	border: 2px solid var(--border-color);
+	border-radius: 0.4rem;
+}
+#search:focus {
+	background-color: var(--bg-color);
+	border: 2px solid var(--grey-color);
+	outline: none;
+}
+#search::-webkit-search-cancel-button {
+	appearance: none;
+	height: 0.9rem;
+	width: 0.9rem;
+	margin-left: 0.2rem;
+	background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><path fill='rgb(176,176,176)' d='M207.6 256l107.72-107.72c6.23-6.23 6.23-16.34 0-22.58l-25.03-25.03c-6.23-6.23-16.34-6.23-22.58 0L160 208.4 52.28 100.68c-6.23-6.23-16.34-6.23-22.58 0L4.68 125.7c-6.23 6.23-6.23 16.34 0 22.58L112.4 256 4.68 363.72c-6.23 6.23-6.23 16.34 0 22.58l25.03 25.03c6.23 6.23 16.34 6.23 22.58 0L160 303.6l107.72 107.72c6.23 6.23 16.34 6.23 22.58 0l25.03-25.03c6.23-6.23 6.23-16.34 0-22.58L207.6 256z'/></svg>");
+	cursor: pointer;
+}
+#leases_showing {
+	border-bottom: var(--blue-color) solid 0.3rem;
+} 
+#clear {
+	float: right;
+}
+
+
+/* Leases State Menu Table */
+#menu {
+	display: inline-table;
+}
+
+#menu td, .button {
+	padding: 0.5rem;
+	cursor: pointer;
+	user-select: none;
+	-webkit-user-select: none;
+	border-radius: 0.4rem;
+	text-align: center;
+	color: var(--txt1-color);
+}
+#menu td:hover, #menu td.selected {
+	color: var(--selected-color);
+}
+#menu td.selected {
+	font-weight: bold;
+}
+#menu td.spacer {
+	font-weight: bold;
+	cursor: default;
+	padding: 0;
+}
+#All {
+	background-color: var(--darkblue-color);
+}
+#All.selected {
+	background-color: var(--blue-color);
+}
+#Leased {
+	background-color: #314131;
+}
+#Leased.selected {
+	background-color: #316131;
+}
+#Expired {
+	background-color: #313131;
+}
+#Expired.selected {
+	background-color: #414141;
+}
+#Abandoned {
+	background-color: #413131;
+}
+#Abandoned.selected {
+	background-color: #613131;
+}
+#Fixed {
+	background-color: #414131;
+}
+#Fixed.selected {
+	background-color: #616131;
+}
+
+
+/* Leases Table */
+#box {
+	overflow: hidden overlay;
+	width: fit-content;
+	scrollbar-gutter: stable;
+}
+@-moz-document url-prefix() {
+	#box {
+		overflow: hidden auto;
+	}
+}
+
+#leases {
+	border-spacing: 0.1rem 0;
+	border-collapse: collapse;
+}
+
+#leases thead {
+	position: sticky; top: 0;
+	z-index: 1;
+}
+#leases th {
+	cursor: pointer;
+	font-size: 1.1rem;
+	font-weight: normal;
+	user-select: none;
+	-webkit-user-select: none;
+	padding-top: 1rem;
+	padding-bottom: 0.4rem;
+	background-color: var(--bg-color);
+	white-space: nowrap;
+}
+#leases th i {
+	color: #80c080;
+}
+#leases th:hover {
+	color: var(--selected-color);
+}
+#leases th.ASC, #leases th.DESC {
+	font-weight: bold;
+	color: var(--selected-color);
+}
+#leases th.ASC::after {
+	content: " \2191";
+}
+#leases th.DESC:after {
+	content: " \2193";
+}
+
+#leases tbody tr:hover {
+	background-color: var(--border-color) !important;
+}
+#leases tbody tr:nth-child(odd) { 
+	background-color: var(--bg1-color)
+}
+#leases tbody tr:nth-child(even) { 
+	background-color: var(--bg2-color) 
+}
+
+/* Footer */
+#leases_message {
+	display: none;
+}
+#leases_message td {
+	text-align: center;
+	padding-top: 1rem;
+}
+
+/* Columns */
+#leases tbody td {
+	border-bottom: 1px solid var(--border-color);
+	padding: 0.7rem 0.5rem;
+	min-width: 5rem;
+}
+#leases td.mac {
+	font-family: monospace, monospace;
+}
+#leases td.starts, #leases td.ends {
+	color: var(--txt1-color);
+}
+#leases td.hostname, #leases td.vendor {
+	color: var(--txt1-color);
+}
+tbody tr.Leased td.ip {
+	color: #80c080;
+}
+tbody tr.Abandoned td.ip {
+	color: #c08080;
+}
+tbody tr.Fixed td.ip {
+	color: #c0c080;
+}
+#leases tbody tr.recycled td {
+	opacity: 0.4;
+}
+</style><script>
+const subnets_db = {};
+
+var graph_x_start = 0,
+	graph_y_db = [],
+	graph_hours_selected = {},
+	refreshed;
+
+
+function init() {
+
+	// Scroll leases table from anywhere
+	document.body.addEventListener('wheel', (e) => {
+		box.scrollTop += e.deltaY;
+	});
+
+	// Init subnets_db & subnet filtering
+	subnets.querySelectorAll('input[type=checkbox]').forEach((chk) => {
+		chk.addEventListener('change', () => {
+			document.getElementById('s_' + chk.dataset.subnet).style.opacity = ( chk.checked ) ? '1' : '0.4';
+			leases_filter();
+			bargraph_draw();
+		});
+		
+		subnets_db[chk.dataset.subnet] = { 
+			'checkbox': chk, 
+			'mask': chk.dataset.mask, 
+			'ips' :  +document.getElementById('s_' + chk.dataset.subnet).getElementsByClassName('s_ips')[0].textContent,
+			'leases' : 0,
+			'leased' : 0,
+			'expired' : 0,
+			'abandoned' : 0,
+			'fixed' : 0
+		};
+		// TODO localstorage state
+	});
+
+	//Init leases & populate subnets
+	const leases_rows = leases.tBodies[0].rows;
+	
+	refreshed = new Date(now.textContent);
+	graph_x_start = Math.floor(refreshed.getTime() / 3600000) - (bargraph_range.value * 24 ) + 1;
+	leases_sort(2); // Ending time, desc
+
+	// old leases of the same ip
+	var ip_unique = {};
+
+	for ( const row of leases_rows ) {
+		const ip = ip_to_int(row.getElementsByClassName('ip')[0].textContent),
+			  ip_subnet = ip_in_subnet(ip),
+			  starts = Math.floor(Date.parse(row.getElementsByClassName('starts')[0].textContent) / 3600000) || 0,
+			  state = row.classList[0].toLowerCase();
+		row.dataset.ip = ip;
+		row.dataset.subnet = ip_subnet;
+		row.dataset.starts = starts;
+
+		if ( ! ip_unique[ip] ) {
+			ip_unique[ip] = true;
+			subnets_db[ip_subnet][state] ++;
+		} else {
+			row.classList.add('recycled');
+		}
+	}
+
+	search.addEventListener('input', () => {
+		leases_filter();
+		bargraph_draw();
+	});
+	// TODO localstorage state
+
+	bargraph_range.addEventListener('change', () => {
+		graph_x_start = Math.floor(refreshed.getTime() / 3600000) - (bargraph_range.value * 24 ) + 1;
+		leases_filter();
+		bargraph_draw();
+	});
+	// TODO localstorage state
+
+	clear.addEventListener('click', () => {
+		graph_hours_selected = {};
+		search.value = '';
+		leases_filter('All');
+		bargraph_draw();
+	});
+
+	menu.querySelectorAll('td').forEach((td) => {
+		if ( td.className != 'spacer' ) {
+			td.addEventListener('click', () => leases_filter(td.id));
+		}
+	});
+	// TODO localstorage state
+
+	leases.querySelectorAll('th').forEach((th, column) => {
+		th.addEventListener('click', () => leases_sort(column));
+	});
+	// TODO localstorage state
+
+	//  Leases state menu fixed layout & width
+	menu.width = ( +menu.offsetWidth + 80 ) + 'px';
+	menu.querySelectorAll('td').forEach( (td) => { 
+		td.width = td.offsetWidth + 'px' 
+	});
+	menu.style.tableLayout = 'fixed';
+
+	subnets_update();
+	leases_filter(); // & init bargraph data
+	bargraph_draw();
+	layout_manager();
+
+	window.addEventListener("resize", (event) => {
+		layout_manager();
+	});
+}
+
+
+function ip_from_int(int) {
+	return ( (int>>>24) + '.' + (int>>16 & 255) + '.' + (int>>8 & 255) + '.' + (int & 255) );
+}
+
+function ip_to_int(ip) {
+	return ip.split('.').reduce((a, b) => a * 256 + +b)
+}
+
+function ip_in_subnet(ip_int) {
+	for (const key in subnets_db) {
+		if ( ( ip_int & subnets_db[key].mask )>>>0 == key ) {
+			return key;
+		}
+	}
+	return false;
+}
+
+
+function layout_manager() {
+	const leases_th = leases.tHead.rows[0].cells;
+
+	leases.style.tableLayout = 'auto';
+	for (const th of leases_th) {
+		th.width = 'fit-content';
+	}
+	main.style.width = 'fit-content';
+	leases.width = 'fit-content';
+
+	leases.width = leases.offsetWidth + 'px';
+	main.style.width = leases.offsetWidth + 'px';
+	for (const th of leases_th) {
+		th.width = th.offsetWidth + 'px';
+	}
+	leases.style.tableLayout = 'fixed';
+}
+
+
+function subnets_update() {
+	for ( const key in subnets_db ) {
+		const subnet_div = document.getElementById( 's_' + key ),
+			  bar_graph = subnet_div.getElementsByClassName('bar_fg')[0],
+			  s_leased_percent = ( subnets_db[key].leased * 100 / subnets_db[key].ips ).toFixed(2);
+
+		subnet_div.getElementsByClassName('s_leased')[0].textContent = subnets_db[key].leased;
+		subnet_div.getElementsByClassName('s_leased_percent')[0].textContent = s_leased_percent +'%';
+		subnet_div.getElementsByClassName('s_fixed')[0].textContent = subnets_db[key].fixed;
+		bar_graph.style.width = s_leased_percent + '%';
+		bar_graph.className = ( s_leased_percent < 75) ? 'bar_fg bar_green' : ( s_leased_percent > 89 ) ? 'bar_fg bar_red' : 'bar_fg bar_yellow';
+	}
+}
+
+
+function bargraph_draw() {
+	const max_leases = graph_y_db.reduce((a, b) => Math.max(a, b), -1),
+		  col_span = +bargraph_range.value,
+		  bars_num = col_span * 24,
+		  tbody_tr = document.createElement('tr'),
+		  tfoot_tr = document.createElement('tr'),
+		  td_width = ( 100 / bars_num ) + '%';
+
+	tbody_tr.style.fontStretch = (col_span < 2) ? '100%' : ( col_span > 6 ) ? '50%' : ( 100 - col_span * 8 ) + '%';
+	bargraph.tHead.rows[0].cells[0].colSpan = bars_num;
+
+	for ( let i = 0; i < bars_num; i++ ) {
+		const td = document.createElement('td'),
+			  time = new Date(( graph_x_start + i ) * 3600000),
+			  time_ts = time.getTime(),
+			  graph_hours_start = refreshed.getHours(),
+			  leases = ( graph_y_db[i] ) ? graph_y_db[i] : 0;
+		
+		td.title = 'New leases: ' + leases + "\n" + time.toLocaleString().replace(',', ' -');
+		td.style.width = td_width;
+		if ( leases ) {
+			const bar_div = document.createElement('div');
+			bar_div.style.height = ( leases * 85 / max_leases ) + '%';
+			td.className = ( graph_hours_selected[time_ts] ) ? 'has_leases selected' : 'has_leases';
+			td.appendChild(document.createTextNode( leases ));
+			td.appendChild(bar_div);
+			td.addEventListener('click', () => {
+				if ( graph_hours_selected[time_ts] ) {
+					td.classList.remove('selected');
+					delete graph_hours_selected[time_ts];
+				} else {
+					td.classList.add('selected');
+					graph_hours_selected[time_ts] = true;
+				}
+				leases_filter();
+			});
+		}
+		tbody_tr.appendChild(td);
+
+		// X axis labels
+		if ( ( i % col_span ) == 0 ) {
+			td.classList.add('line');
+			
+			const label = document.createElement("td");
+			label.colSpan = col_span;
+			label.style.textAlign = ( col_span == 1 ) ? 'center' : 'left';
+			if ( Math.floor( (i + graph_hours_start + 1 ) / 24) % 2 )
+				label.classList.add('even');
+			label.appendChild(document.createTextNode( time.getHours() + ':' + time.getMinutes().toString().padStart(2, '0') ));
+			tfoot_tr.appendChild(label);
+		}
+	}
+	bargraph.tBodies[0].replaceChildren(tbody_tr);
+	bargraph.tFoot.replaceChildren(tfoot_tr);
+}
+
+
+function leases_sort(column) {
+	const headers = leases.tHead.rows[0].cells,
+		  ip = ( headers[column].textContent == 'IP' ),
+		  reverse = ( headers[column].className == 'ASC' );
+	
+	let rows_sorted = Array.from(leases.tBodies[0].rows).sort( (row_a, row_b) => {
+		if ( ip ) 
+			return row_a.dataset.ip - row_b.dataset.ip;
+		const td_a = row_a.cells[column].textContent;
+		if ( td_a == '' ) 
+			return 1;
+		const td_b = row_b.cells[column].textContent;
+		if ( td_b == '' ) 
+			return -1;
+		return td_a.localeCompare(td_b);
+	} );
+
+	if ( reverse ) {
+		rows_sorted.reverse();
+		headers[column].className = 'DESC';
+	} else {
+		for ( const header of headers ) {
+			header.className = '';
+		}
+		headers[column].className = 'ASC';
+	}
+	leases.tBodies[0].replaceChildren( ...rows_sorted );
+	box.scrollTop = 0;
+}
+
+
+function leases_filter(leases_state = false) {
+	const leases_rows = leases.tBodies[0].rows,
+		  search_text = search.value.toLowerCase(),
+		  menu_selected = menu.rows[0].getElementsByClassName('selected'),
+		  hour_filter = ( Object.keys(graph_hours_selected).length == 0 );
+
+	let showing = 0, 
+		leases_header = {'leased' : 0, 'expired': 0, 'abandoned': 0, 'fixed': 0 };
+	
+	graph_y_db = [];
+
+	if ( ! leases_state ) {
+		leases_state = menu_selected[0].id ;
+	} else {
+		menu_selected[0].className = '';
+		document.getElementById(leases_state).className = 'selected';
+	}
+	
+	for ( const row of leases_rows ) {
+		const recycled = row.classList.contains('recycled')
+		let display = 'none';
+
+		if (( (! search_text) || row.innerHTML.replace(/<(.|\n)*?>/g, '|').toLowerCase().includes(search_text) ) && subnets_db[row.dataset.subnet].checkbox.checked ) {
+
+			if ( row.classList[0] == 'Fixed' ) {
+
+				if ( leases_state == 'Fixed' ) {
+					display = 'table-row';
+					showing ++;
+				}
+				leases_header['fixed'] ++;
+				
+			} else {
+
+				// Bargraph init graph_y_db before hour_filtering. 
+				let graph_hour = -1;
+				if ( row.dataset.starts >= graph_x_start ) {
+					graph_hour = row.dataset.starts - graph_x_start;
+					if  ( ! graph_y_db[graph_hour] ) {
+						graph_y_db[graph_hour] = 0;
+					}
+					if ( ! recycled ) {
+						graph_y_db[graph_hour] ++;
+					}
+				}
+
+				if ( hour_filter || graph_hours_selected[row.dataset.starts * 3600000] ) {
+					if ( ( leases_state == 'All' ) || ( row.classList[0] == leases_state ) ) {
+						display = 'table-row';
+						showing ++;
+					}
+					if ( ! recycled ) {
+						leases_header[row.classList[0].toLowerCase()] ++;
+					}
+				}
+			}
+		}
+		row.style.display = display;
+	}
+
+	leases_total.textContent = leases_header['leased'] + leases_header['expired'] + leases_header['abandoned'];
+	leases_leased.textContent = leases_header['leased'] ;
+	leases_expired.textContent =  leases_header['expired'];
+	leases_abandoned.textContent = leases_header['abandoned'];
+	leases_fixed.textContent = leases_header['fixed'];
+	// no rows
+	leases_message.style.display = ( showing ) ? 'none' : 'table-footer-group';
+	leases.tHead.style.display = ( showing ) ? 'table-header-group' : 'none';
+	// Bargraph color
+	document.documentElement.style.setProperty('--bargraph-bars', ( hour_filter ) ? 'var(--blue-color)' : 'var(--darkblue-color)' );
+
+	box.scrollTop = 0;
+}
+</script>
+	</head>
+	<body onload="init()">
+		<div id="main">
+			<div id="stats"> 
+				<a href="https://github.com/facelessfish/dhcpd-leasesd" target="_blank"><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"></a>&nbsp; <b>dhcpd.leases dashboard</b> 1.5&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">2024/12/24 10:29:25</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>4 sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
+			</div>
+			<div id="subnets">
+				<div id=s_3232239360><input type="checkbox" data-subnet="3232239360" data-mask="4294967040" checked><b>Subnet:</b><span>192.168.15.0</span>/<span>24</span><br><div class="bar_bg"><div class="bar_fg"></div></div><p>IPs:<span class="s_ips">113</span> Leased:<span class="s_leased">0</span>(<span class="s_leased_percent">0%</span>) Fixed:<span class="s_fixed">0</span><br> RG:<span>192.168.15.128</span>-<span>192.168.15.240</span>:<span>113</span><br></p></div><div id=s_3232239616><input type="checkbox" data-subnet="3232239616" data-mask="4294967040" checked><b>Subnet:</b><span>192.168.16.0</span>/<span>24</span><br><div class="bar_bg"><div class="bar_fg"></div></div><p>IPs:<span class="s_ips">208</span> Leased:<span class="s_leased">0</span>(<span class="s_leased_percent">0%</span>) Fixed:<span class="s_fixed">0</span><br> RG:<span>192.168.16.33</span>-<span>192.168.16.240</span>:<span>208</span><br></p></div>
+			</div>
+			<table id="bargraph">
+				<thead>
+					<tr><td colspan=24><b>Leases / hour</b> ( <span>past <select name="bargraph_range" id="bargraph_range"><option value=1>24 hrs</option><option value=2>2 days</option><option value=3>3 days</option><option value=4>4 days</option><option value=6>6 days</option><option value=8>8 days</option></select></span> )</td></tr>
+				</thead>
+				<tbody>
+					<tr><td></td></tr>
+				</tbody>
+				<tfoot></tfoot>
+			</table>
+			<div id="header">
+				<b>dhcpd.leases:</b>
+				<table id="menu" cellspacing=2>
+					<tr>
+						<td id="All" class="selected">All:<span id="leases_total"></span></td><td id="Leased">Leased:<span id="leases_leased"></span></td><td id="Expired">Expired:<span id="leases_expired">&nbsp;&nbsp;&nbsp;</span></td><td id="Abandoned">Abandoned:<span id="leases_abandoned"></span></td><td class="spacer">&nbsp;&nbsp;&nbsp;</td><td id="Fixed">Fixed:<span id="leases_fixed"></span></td>
+					</tr>
+				</table>
+				&nbsp;&nbsp;&nbsp;<div><input size=16 id="search" type="search" placeholder="Search.." title="Search leases (all columns)"></div><div id ="clear" class="button"> &#x2715; Clear</div>
+			</div>
+			<div id=box>
+				<table id="leases">
+					<thead>
+						<tr>
+							<th>IP</th><th>Starts</th><th class="ASC">Ends</th><th>MAC</th><th>Hostname</th><th>Vendor</th>
+						</tr>
+					</thead>
+					<tbody>
+						<tr class="Leased"><td class="ip">192.168.16.66</td><td class="starts">2024/12/24 09:14:04</td><td class="ends">2024/12/24 15:14:04</td><td class="mac">9a:e5:cc:cd:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.207</td><td class="starts">2024/12/24 08:51:08</td><td class="ends">2024/12/24 14:51:08</td><td class="mac">9a:51:c7:ac:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.157</td><td class="starts">2024/12/24 07:40:47</td><td class="ends">2024/12/24 13:40:47</td><td class="mac">9e:c9:e1:c5:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.224</td><td class="starts">2024/12/24 07:23:20</td><td class="ends">2024/12/24 13:23:20</td><td class="mac">ee:a1:22:f5:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.96</td><td class="starts">2024/12/24 07:22:19</td><td class="ends">2024/12/24 13:22:19</td><td class="mac">da:49:1b:40:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.100</td><td class="starts">2024/12/24 07:12:39</td><td class="ends">2024/12/24 13:12:39</td><td class="mac">1a:8d:e3:ab:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.109</td><td class="starts">2024/12/24 07:02:49</td><td class="ends">2024/12/24 13:02:49</td><td class="mac">a2:da:2a:31:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.155</td><td class="starts">2024/12/24 09:41:38</td><td class="ends">2024/12/24 11:41:38</td><td class="mac">5a:f9:f1:5f:-:-</td><td class="hostname">Redmi-Note-12-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.84</td><td class="starts">2024/12/24 09:32:03</td><td class="ends">2024/12/24 11:32:03</td><td class="mac">82:47:82:99:-:-</td><td class="hostname">Galaxy-A23</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.138</td><td class="starts">2024/12/24 09:18:22</td><td class="ends">2024/12/24 11:18:22</td><td class="mac">4a:6b:24:75:-:-</td><td class="hostname">Galaxy-A72</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.129</td><td class="starts">2024/12/24 09:12:50</td><td class="ends">2024/12/24 11:12:50</td><td class="mac">30:a1:fa:c5:-:-</td><td class="hostname">HUAWEI_Mate_20_lite-9d128</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Leased"><td class="ip">192.168.16.108</td><td class="starts">2024/12/24 09:06:26</td><td class="ends">2024/12/24 11:06:26</td><td class="mac">3e:d8:c7:b4:-:-</td><td class="hostname">To-A30s-tou-tes-Maria</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.61</td><td class="starts">2024/12/24 08:58:52</td><td class="ends">2024/12/24 10:58:52</td><td class="mac">6e:a4:c7:e1:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.132</td><td class="starts">2024/12/24 08:52:36</td><td class="ends">2024/12/24 10:52:36</td><td class="mac">8e:96:3c:f8:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.65</td><td class="starts">2024/12/24 08:44:41</td><td class="ends">2024/12/24 10:44:41</td><td class="mac">2e:53:85:0c:-:-</td><td class="hostname">Redmi-12-5G</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.126</td><td class="starts">2024/12/24 08:30:28</td><td class="ends">2024/12/24 10:30:28</td><td class="mac">aa:15:23:f0:-:-</td><td class="hostname">George</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.237</td><td class="starts">2024/12/24 07:59:11</td><td class="ends">2024/12/24 09:59:11</td><td class="mac">2a:bf:84:c6:-:-</td><td class="hostname">Galaxy-A13</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.114</td><td class="starts">2024/12/24 07:52:30</td><td class="ends">2024/12/24 09:52:30</td><td class="mac">f6:06:4a:1b:-:-</td><td class="hostname">Redmi-Note-13-Pro</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.137</td><td class="starts">2024/12/24 09:37:37</td><td class="ends">2024/12/24 09:39:37</td><td class="mac">fe:98:91:14:-:-</td><td class="hostname">Savvas-s-A54</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.134</td><td class="starts">2024/12/24 07:07:40</td><td class="ends">2024/12/24 09:07:40</td><td class="mac">8a:02:2d:18:-:-</td><td class="hostname">Pixel-7</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.79</td><td class="starts">2024/12/24 05:38:01</td><td class="ends">2024/12/24 05:40:01</td><td class="mac">3e:50:65:7d:-:-</td><td class="hostname">OPPO-F25-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.166</td><td class="starts">2024/12/23 21:31:49</td><td class="ends">2024/12/23 21:33:49</td><td class="mac">44:59:e3:84:-:-</td><td class="hostname">HUAWEI_P_smart_Z-cdfcd2a3</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.105</td><td class="starts">2024/12/23 18:58:53</td><td class="ends">2024/12/23 20:58:53</td><td class="mac">96:ac:f5:73:-:-</td><td class="hostname">Bardi-s-A22</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.188</td><td class="starts">2024/12/23 18:42:41</td><td class="ends">2024/12/23 20:42:41</td><td class="mac">e6:19:7d:9d:-:-</td><td class="hostname">Zoe-s-Galaxy-A30s</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.130</td><td class="starts">2024/12/23 19:37:49</td><td class="ends">2024/12/23 19:39:49</td><td class="mac">42:c6:f8:e8:-:-</td><td class="hostname">HUAWEI_P30_Pro-79e27fb6c1</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.76</td><td class="starts">2024/12/23 17:26:56</td><td class="ends">2024/12/23 19:26:56</td><td class="mac">b6:11:25:3f:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.213</td><td class="starts">2024/12/23 17:17:56</td><td class="ends">2024/12/23 19:17:56</td><td class="mac">30:45:96:3c:-:-</td><td class="hostname">HUAWEI_P20_Pro-3056cd1387</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.183</td><td class="starts">2024/12/23 17:06:39</td><td class="ends">2024/12/23 19:06:39</td><td class="mac">ae:91:a4:9a:-:-</td><td class="hostname">Tasos-s-A50</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.142</td><td class="starts">2024/12/23 13:00:15</td><td class="ends">2024/12/23 19:00:15</td><td class="mac">8a:93:a0:a4:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.51</td><td class="starts">2024/12/23 12:45:15</td><td class="ends">2024/12/23 18:45:15</td><td class="mac">3e:a1:1a:50:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.220</td><td class="starts">2024/12/23 11:55:30</td><td class="ends">2024/12/23 17:55:30</td><td class="mac">c2:f4:6b:27:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.113</td><td class="starts">2024/12/23 11:34:35</td><td class="ends">2024/12/23 17:34:35</td><td class="mac">a0:78:17:6f:-:-</td><td class="hostname"></td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.190</td><td class="starts">2024/12/23 14:57:46</td><td class="ends">2024/12/23 16:57:46</td><td class="mac">5a:be:2d:a9:-:-</td><td class="hostname">Eleni-s-S21-Ultra</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.153</td><td class="starts">2024/12/23 14:50:23</td><td class="ends">2024/12/23 16:50:23</td><td class="mac">46:ac:34:a2:-:-</td><td class="hostname">Redmi-Note-13-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.81</td><td class="starts">2024/12/23 10:43:32</td><td class="ends">2024/12/23 16:43:32</td><td class="mac">d6:f1:aa:ca:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.205</td><td class="starts">2024/12/23 14:35:37</td><td class="ends">2024/12/23 16:35:37</td><td class="mac">ca:79:c7:d7:-:-</td><td class="hostname">Redmi-Note-13-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.199</td><td class="starts">2024/12/23 16:07:49</td><td class="ends">2024/12/23 16:09:49</td><td class="mac">92:29:7c:a6:-:-</td><td class="hostname">HUAWEI_P30-144f5b04728696</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.189</td><td class="starts">2024/12/23 14:07:07</td><td class="ends">2024/12/23 16:07:07</td><td class="mac">20:da:22:8f:-:-</td><td class="hostname">HUAWEI_Y7_2019-d4e5cd9a12</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.90</td><td class="starts">2024/12/23 13:53:05</td><td class="ends">2024/12/23 15:53:05</td><td class="mac">f2:9c:7f:ec:-:-</td><td class="hostname">HUAWEI_P30_Pro-1f9f38efb7</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.173</td><td class="starts">2024/12/23 13:22:35</td><td class="ends">2024/12/23 15:22:35</td><td class="mac">de:e3:2b:da:-:-</td><td class="hostname">Redmi-Note-13-Pro</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.37</td><td class="starts">2024/12/23 13:13:06</td><td class="ends">2024/12/23 15:13:06</td><td class="mac">7e:25:a3:aa:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.118</td><td class="starts">2024/12/23 09:11:50</td><td class="ends">2024/12/23 15:11:50</td><td class="mac">c2:22:0c:02:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.148</td><td class="starts">2024/12/23 13:01:31</td><td class="ends">2024/12/23 15:01:31</td><td class="mac">a8:66:7f:36:-:-</td><td class="hostname"></td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.229</td><td class="starts">2024/12/23 12:39:03</td><td class="ends">2024/12/23 14:39:03</td><td class="mac">02:52:2f:34:-:-</td><td class="hostname">realme-C21</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.206</td><td class="starts">2024/12/23 12:38:22</td><td class="ends">2024/12/23 14:38:22</td><td class="mac">00:07:13:81:-:-</td><td class="hostname"></td><td class="vendor">IP One, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.143</td><td class="starts">2024/12/23 14:36:11</td><td class="ends">2024/12/23 14:38:11</td><td class="mac">30:a2:c2:d1:-:-</td><td class="hostname">HUAWEI_Y7_2019-41056628c1</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.34</td><td class="starts">2024/12/23 12:32:40</td><td class="ends">2024/12/23 14:32:40</td><td class="mac">ba:c5:74:90:-:-</td><td class="hostname">Redmi-Note-11S</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.42</td><td class="starts">2024/12/23 11:59:31</td><td class="ends">2024/12/23 13:59:31</td><td class="mac">4e:aa:57:75:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.222</td><td class="starts">2024/12/23 11:50:18</td><td class="ends">2024/12/23 13:50:18</td><td class="mac">26:92:d5:a3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.197</td><td class="starts">2024/12/23 11:48:14</td><td class="ends">2024/12/23 13:48:14</td><td class="mac">fa:5d:75:7e:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.235</td><td class="starts">2024/12/23 11:47:22</td><td class="ends">2024/12/23 13:47:22</td><td class="mac">12:6c:8b:61:-:-</td><td class="hostname">Galaxy-A13</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.125</td><td class="starts">2024/12/23 11:32:36</td><td class="ends">2024/12/23 13:32:36</td><td class="mac">a4:93:3f:5c:-:-</td><td class="hostname">Honor_10-782bef005fe2fc29</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.116</td><td class="starts">2024/12/23 10:45:49</td><td class="ends">2024/12/23 12:45:49</td><td class="mac">72:f5:ec:34:-:-</td><td class="hostname">Galaxy-A32-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.74</td><td class="starts">2024/12/23 10:43:42</td><td class="ends">2024/12/23 12:43:42</td><td class="mac">5e:27:7c:df:-:-</td><td class="hostname">Jay-s-S10</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.40</td><td class="starts">2024/12/23 10:10:28</td><td class="ends">2024/12/23 12:10:28</td><td class="mac">e0:24:81:c4:-:-</td><td class="hostname">HUAWEI_P30_lite-6d41d6c82</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.83</td><td class="starts">2024/12/23 09:46:50</td><td class="ends">2024/12/23 11:46:50</td><td class="mac">74:15:75:76:-:-</td><td class="hostname">M2007J20CG-POCOX3NFC</td><td class="vendor">Xiaomi Communications Co Ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.180</td><td class="starts">2024/12/23 11:34:27</td><td class="ends">2024/12/23 11:36:27</td><td class="mac">08:31:8b:7f:-:-</td><td class="hostname">HUAWEI_P30_lite-105a7b2f3</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.179</td><td class="starts">2024/12/23 09:34:10</td><td class="ends">2024/12/23 11:34:10</td><td class="mac">0a:4f:07:ed:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.209</td><td class="starts">2024/12/23 09:34:09</td><td class="ends">2024/12/23 11:34:09</td><td class="mac">ba:64:32:0b:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.133</td><td class="starts">2024/12/23 11:08:56</td><td class="ends">2024/12/23 11:10:56</td><td class="mac">2e:a3:fa:d5:-:-</td><td class="hostname">vivo-1915</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.43</td><td class="starts">2024/12/23 10:39:16</td><td class="ends">2024/12/23 10:41:16</td><td class="mac">fa:8d:9e:1e:-:-</td><td class="hostname">Andreas-s-S22-Ultra</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.147</td><td class="starts">2024/12/23 08:34:56</td><td class="ends">2024/12/23 10:34:56</td><td class="mac">4a:7e:a2:bd:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.87</td><td class="starts">2024/12/23 08:30:03</td><td class="ends">2024/12/23 10:30:03</td><td class="mac">fa:ca:6a:b3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.123</td><td class="starts">2024/12/23 08:29:12</td><td class="ends">2024/12/23 10:29:12</td><td class="mac">32:96:99:67:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.156</td><td class="starts">2024/12/23 07:42:46</td><td class="ends">2024/12/23 09:42:46</td><td class="mac">ee:6f:f1:29:-:-</td><td class="hostname">Galaxy-Tab-S8</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.56</td><td class="starts">2024/12/23 06:30:08</td><td class="ends">2024/12/23 08:30:08</td><td class="mac">34:b2:0a:73:-:-</td><td class="hostname">HUAWEI_P_smart_Pro-10f967</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.44</td><td class="starts">2024/12/23 08:13:16</td><td class="ends">2024/12/23 08:15:16</td><td class="mac">02:3a:40:a4:-:-</td><td class="hostname">HUAWEI_P30_Pro-6c948fa8e7</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.41</td><td class="starts">2024/12/23 04:56:24</td><td class="ends">2024/12/23 06:56:24</td><td class="mac">fa:c0:c5:af:-:-</td><td class="hostname">V2026</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.85</td><td class="starts">2024/12/23 04:45:46</td><td class="ends">2024/12/23 06:45:46</td><td class="mac">ba:cd:a6:22:-:-</td><td class="hostname">Neh-s-A54</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.124</td><td class="starts">2024/12/22 21:55:58</td><td class="ends">2024/12/22 23:55:58</td><td class="mac">ac:07:5f:81:-:-</td><td class="hostname">HUAWEI_P20-6db2fd734fb3bf</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.174</td><td class="starts">2024/12/22 20:57:09</td><td class="ends">2024/12/22 22:57:09</td><td class="mac">ce:26:e9:d6:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.165</td><td class="starts">2024/12/22 20:12:12</td><td class="ends">2024/12/22 22:12:12</td><td class="mac">06:9c:49:e2:-:-</td><td class="hostname">S-Galaxy-S23</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.97</td><td class="starts">2024/12/22 19:37:34</td><td class="ends">2024/12/22 21:37:34</td><td class="mac">0a:6c:4a:25:-:-</td><td class="hostname">Galaxy-A9-2018</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.88</td><td class="starts">2024/12/22 19:36:02</td><td class="ends">2024/12/22 21:36:02</td><td class="mac">7c:d6:61:66:-:-</td><td class="hostname"></td><td class="vendor">Xiaomi Communications Co Ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.135</td><td class="starts">2024/12/22 17:57:47</td><td class="ends">2024/12/22 19:57:47</td><td class="mac">98:9c:57:86:-:-</td><td class="hostname">HUAWEI_Mate_10_Pro-9b194c</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.170</td><td class="starts">2024/12/22 19:40:21</td><td class="ends">2024/12/22 19:42:21</td><td class="mac">9e:4b:13:6f:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.208</td><td class="starts">2024/12/22 17:16:24</td><td class="ends">2024/12/22 19:16:24</td><td class="mac">e0:40:07:8e:-:-</td><td class="hostname">HUAWEI_P30_lite-cc2c52e91</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.95</td><td class="starts">2024/12/22 13:08:48</td><td class="ends">2024/12/22 19:08:48</td><td class="mac">4a:da:fc:64:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.82</td><td class="starts">2024/12/22 17:04:53</td><td class="ends">2024/12/22 19:04:53</td><td class="mac">5a:e6:d2:9a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.136</td><td class="starts">2024/12/22 16:48:53</td><td class="ends">2024/12/22 18:48:53</td><td class="mac">42:6a:bb:2e:-:-</td><td class="hostname">HUAWEI_P40_lite-675190801</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.181</td><td class="starts">2024/12/22 16:40:06</td><td class="ends">2024/12/22 18:40:06</td><td class="mac">82:3f:c9:d7:-:-</td><td class="hostname">HUAWEI_P30_Pro-fa3b8fec68</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.196</td><td class="starts">2024/12/22 16:15:36</td><td class="ends">2024/12/22 18:15:36</td><td class="mac">d6:f5:a2:16:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.94</td><td class="starts">2024/12/22 15:51:47</td><td class="ends">2024/12/22 17:51:47</td><td class="mac">30:4f:00:4a:-:-</td><td class="hostname">OPPO-A12</td><td class="vendor">GUANGDONG OPPO MOBILE TELECOMMUNICATIONS CORP.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.214</td><td class="starts">2024/12/22 15:49:49</td><td class="ends">2024/12/22 17:49:49</td><td class="mac">4c:dd:31:29:-:-</td><td class="hostname">Galaxy-J7</td><td class="vendor">Samsung Electronics Co.,Ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.187</td><td class="starts">2024/12/22 11:49:24</td><td class="ends">2024/12/22 17:49:24</td><td class="mac">0a:09:f4:fc:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.53</td><td class="starts">2024/12/22 17:13:57</td><td class="ends">2024/12/22 17:15:57</td><td class="mac">a2:2b:bd:91:-:-</td><td class="hostname">HUAWEI_P30-96834db1e83f93</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.172</td><td class="starts">2024/12/22 16:46:25</td><td class="ends">2024/12/22 16:48:25</td><td class="mac">b6:f1:97:83:-:-</td><td class="hostname">Galaxy-Tab-S6-Lite</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.101</td><td class="starts">2024/12/22 14:18:10</td><td class="ends">2024/12/22 16:18:10</td><td class="mac">06:3a:e8:f9:-:-</td><td class="hostname">Christianas-phone</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.151</td><td class="starts">2024/12/22 15:55:03</td><td class="ends">2024/12/22 15:57:03</td><td class="mac">12:61:c5:e7:-:-</td><td class="hostname">HUAWEI_P30_Pro-26681cad12</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.223</td><td class="starts">2024/12/22 13:52:21</td><td class="ends">2024/12/22 15:52:21</td><td class="mac">d0:16:b4:17:-:-</td><td class="hostname">HUAWEI_Mate_20_lite-3fd43</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.219</td><td class="starts">2024/12/22 09:17:11</td><td class="ends">2024/12/22 15:17:11</td><td class="mac">3e:e7:7d:6a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.91</td><td class="starts">2024/12/22 13:02:38</td><td class="ends">2024/12/22 15:02:38</td><td class="mac">a6:d8:1c:a4:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.171</td><td class="starts">2024/12/22 12:52:39</td><td class="ends">2024/12/22 14:52:39</td><td class="mac">f0:0f:ec:27:-:-</td><td class="hostname">HUAWEI_P20-7ba9d8aa3fdf52</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.225</td><td class="starts">2024/12/22 14:19:17</td><td class="ends">2024/12/22 14:21:17</td><td class="mac">42:f8:bb:25:-:-</td><td class="hostname">HUAWEI_P30_Pro-1f9d1fed8e</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.201</td><td class="starts">2024/12/22 13:48:43</td><td class="ends">2024/12/22 13:50:43</td><td class="mac">82:90:b2:cf:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.110</td><td class="starts">2024/12/22 11:50:00</td><td class="ends">2024/12/22 13:50:00</td><td class="mac">c6:58:fe:1d:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.211</td><td class="starts">2024/12/22 11:06:08</td><td class="ends">2024/12/22 13:06:08</td><td class="mac">72:7d:fe:04:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.230</td><td class="starts">2024/12/22 10:53:44</td><td class="ends">2024/12/22 12:53:44</td><td class="mac">8a:ce:13:4b:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.236</td><td class="starts">2024/12/22 10:18:32</td><td class="ends">2024/12/22 12:18:32</td><td class="mac">d2:df:81:f7:-:-</td><td class="hostname">M2101K9G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.71</td><td class="starts">2024/12/22 10:12:17</td><td class="ends">2024/12/22 12:12:17</td><td class="mac">0e:0b:54:dc:-:-</td><td class="hostname">Redmi-A2</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.57</td><td class="starts">2024/12/22 10:08:23</td><td class="ends">2024/12/22 12:08:23</td><td class="mac">b2:27:70:12:-:-</td><td class="hostname">Alexis-S21</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.140</td><td class="starts">2024/12/22 09:24:17</td><td class="ends">2024/12/22 11:24:17</td><td class="mac">4a:f7:08:5e:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.68</td><td class="starts">2024/12/22 09:09:52</td><td class="ends">2024/12/22 11:09:52</td><td class="mac">24:6f:8c:e6:-:-</td><td class="hostname">HUAWEI_P_smart_Pro-3bd88d</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.102</td><td class="starts">2024/12/22 08:43:11</td><td class="ends">2024/12/22 10:43:11</td><td class="mac">5e:a5:63:4b:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.167</td><td class="starts">2024/12/22 08:37:03</td><td class="ends">2024/12/22 10:37:03</td><td class="mac">62:96:c4:56:-:-</td><td class="hostname">To-A14-tou-tes-Marios</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.39</td><td class="starts">2024/12/22 08:34:51</td><td class="ends">2024/12/22 10:34:51</td><td class="mac">0a:e5:a8:ef:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.182</td><td class="starts">2024/12/22 08:23:16</td><td class="ends">2024/12/22 10:23:16</td><td class="mac">96:27:97:f8:-:-</td><td class="hostname">A34-de-Guyva</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.45</td><td class="starts">2024/12/22 08:17:47</td><td class="ends">2024/12/22 10:17:47</td><td class="mac">24:fb:65:3f:-:-</td><td class="hostname">HUAWEI_P20_Pro-6fee9a05cb</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.178</td><td class="starts">2024/12/22 07:35:47</td><td class="ends">2024/12/22 09:35:47</td><td class="mac">4c:e0:db:8a:-:-</td><td class="hostname">Redmi-Note-11S</td><td class="vendor">Xiaomi Communications Co Ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.177</td><td class="starts">2024/12/22 06:48:55</td><td class="ends">2024/12/22 08:48:55</td><td class="mac">92:1b:09:0f:-:-</td><td class="hostname">HUAWEI_P40_lite-8da6c062a</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.192</td><td class="starts">2024/12/22 08:34:49</td><td class="ends">2024/12/22 08:36:49</td><td class="mac">28:f0:33:28:-:-</td><td class="hostname"></td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.55</td><td class="starts">2024/12/22 07:46:13</td><td class="ends">2024/12/22 07:48:13</td><td class="mac">3a:4d:68:6d:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.186</td><td class="starts">2024/12/21 22:15:35</td><td class="ends">2024/12/22 00:15:35</td><td class="mac">f6:99:3f:ef:-:-</td><td class="hostname">Photis-s-S22</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.240</td><td class="starts">2024/12/21 21:05:09</td><td class="ends">2024/12/21 23:05:09</td><td class="mac">f6:06:6a:1d:-:-</td><td class="hostname">OPPO-F19-Pro</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.233</td><td class="starts">2024/12/21 22:39:07</td><td class="ends">2024/12/21 22:41:07</td><td class="mac">d2:3c:f2:ba:-:-</td><td class="hostname">No-name-s-S22</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.33</td><td class="starts">2024/12/21 20:38:25</td><td class="ends">2024/12/21 22:38:25</td><td class="mac">52:1b:5e:25:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.73</td><td class="starts">2024/12/21 20:06:13</td><td class="ends">2024/12/21 22:06:13</td><td class="mac">fa:28:9f:b1:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.195</td><td class="starts">2024/12/21 15:05:10</td><td class="ends">2024/12/21 21:05:10</td><td class="mac">b0:be:83:53:-:-</td><td class="hostname"></td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.239</td><td class="starts">2024/12/21 18:51:48</td><td class="ends">2024/12/21 20:51:48</td><td class="mac">5e:54:ea:aa:-:-</td><td class="hostname">A13-pol-zovatela-Denis</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.92</td><td class="starts">2024/12/21 17:47:44</td><td class="ends">2024/12/21 19:47:44</td><td class="mac">16:a6:ae:b9:-:-</td><td class="hostname">Redmi-12</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.52</td><td class="starts">2024/12/21 17:43:41</td><td class="ends">2024/12/21 19:43:41</td><td class="mac">76:4d:9a:a8:-:-</td><td class="hostname">Ikennas-Galaxy-S9</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.217</td><td class="starts">2024/12/21 13:32:40</td><td class="ends">2024/12/21 19:32:40</td><td class="mac">b2:de:b9:c4:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.216</td><td class="starts">2024/12/21 17:13:53</td><td class="ends">2024/12/21 19:13:53</td><td class="mac">54:ba:d6:db:-:-</td><td class="hostname">HUAWEI_P30_lite-a555dae6b</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.112</td><td class="starts">2024/12/21 16:51:46</td><td class="ends">2024/12/21 18:51:46</td><td class="mac">52:0a:f6:85:-:-</td><td class="hostname">Redmi-10-2022</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.194</td><td class="starts">2024/12/21 15:54:32</td><td class="ends">2024/12/21 17:54:32</td><td class="mac">be:5f:16:59:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.231</td><td class="starts">2024/12/21 15:37:32</td><td class="ends">2024/12/21 17:37:32</td><td class="mac">0c:2c:54:fc:-:-</td><td class="hostname">HUAWEI_P20_Pro-d8b81a1dad</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.202</td><td class="starts">2024/12/21 15:37:11</td><td class="ends">2024/12/21 17:37:11</td><td class="mac">88:40:3b:87:-:-</td><td class="hostname">HUAWEI_P30_lite-c75d3fcf8</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.58</td><td class="starts">2024/12/21 17:32:01</td><td class="ends">2024/12/21 17:34:01</td><td class="mac">7e:59:74:15:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.119</td><td class="starts">2024/12/21 15:04:13</td><td class="ends">2024/12/21 17:04:13</td><td class="mac">22:ce:36:92:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.163</td><td class="starts">2024/12/21 14:05:09</td><td class="ends">2024/12/21 16:05:09</td><td class="mac">52:97:1f:a1:-:-</td><td class="hostname">HUAWEI_nova_5T-91f8e5ca01</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.46</td><td class="starts">2024/12/21 15:56:35</td><td class="ends">2024/12/21 15:58:35</td><td class="mac">e2:a9:50:2d:-:-</td><td class="hostname">HUAWEI_P30_Pro-fdc79bc383</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.227</td><td class="starts">2024/12/21 13:34:25</td><td class="ends">2024/12/21 15:34:25</td><td class="mac">b6:90:88:80:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.80</td><td class="starts">2024/12/21 13:33:45</td><td class="ends">2024/12/21 15:33:45</td><td class="mac">96:6f:9b:6e:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.204</td><td class="starts">2024/12/21 13:12:05</td><td class="ends">2024/12/21 15:12:05</td><td class="mac">26:a7:82:a2:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.62</td><td class="starts">2024/12/21 13:09:51</td><td class="ends">2024/12/21 15:09:51</td><td class="mac">2e:50:6e:65:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.234</td><td class="starts">2024/12/21 12:07:33</td><td class="ends">2024/12/21 14:07:33</td><td class="mac">00:dd:8b:ce:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.89</td><td class="starts">2024/12/21 11:41:32</td><td class="ends">2024/12/21 13:41:32</td><td class="mac">42:9c:5d:83:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.175</td><td class="starts">2024/12/21 11:23:04</td><td class="ends">2024/12/21 13:23:04</td><td class="mac">8e:17:e2:b3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.184</td><td class="starts">2024/12/21 11:21:10</td><td class="ends">2024/12/21 13:21:10</td><td class="mac">0e:9d:c9:fa:-:-</td><td class="hostname">Andri-s-S22</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.200</td><td class="starts">2024/12/21 11:20:40</td><td class="ends">2024/12/21 13:20:40</td><td class="mac">3a:52:43:ef:-:-</td><td class="hostname">TECNO-SPARK-10C</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.59</td><td class="starts">2024/12/21 11:17:10</td><td class="ends">2024/12/21 13:17:10</td><td class="mac">66:e5:d9:00:-:-</td><td class="hostname">Antonia-s-A52s</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.193</td><td class="starts">2024/12/21 10:21:23</td><td class="ends">2024/12/21 12:21:23</td><td class="mac">7a:5d:a4:cc:-:-</td><td class="hostname">Hottia-s-Z-Flip3</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.78</td><td class="starts">2024/12/21 10:07:39</td><td class="ends">2024/12/21 12:07:39</td><td class="mac">36:69:64:f1:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.127</td><td class="starts">2024/12/21 10:07:11</td><td class="ends">2024/12/21 12:07:11</td><td class="mac">76:ec:cb:dd:-:-</td><td class="hostname">S24-pol-zovatela-Nikita</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.128</td><td class="starts">2024/12/21 09:50:51</td><td class="ends">2024/12/21 11:50:51</td><td class="mac">96:1f:fa:85:-:-</td><td class="hostname">Galaxy-A50-na-Svetoslav</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.120</td><td class="starts">2024/12/21 09:47:13</td><td class="ends">2024/12/21 11:47:13</td><td class="mac">30:aa:e4:ca:-:-</td><td class="hostname">HUAWEI_P30_lite-49863e978</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.210</td><td class="starts">2024/12/21 09:42:12</td><td class="ends">2024/12/21 11:42:12</td><td class="mac">3e:5b:05:30:-:-</td><td class="hostname">Ioanna-s-S24</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.160</td><td class="starts">2024/12/21 09:39:40</td><td class="ends">2024/12/21 11:39:40</td><td class="mac">ce:12:83:0b:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.215</td><td class="starts">2024/12/21 09:38:30</td><td class="ends">2024/12/21 11:38:30</td><td class="mac">e2:1d:39:34:-:-</td><td class="hostname">M2102J20SG</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.98</td><td class="starts">2024/12/21 09:14:20</td><td class="ends">2024/12/21 11:14:20</td><td class="mac">c6:f4:87:4a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.70</td><td class="starts">2024/12/21 11:08:31</td><td class="ends">2024/12/21 11:10:31</td><td class="mac">42:94:43:46:-:-</td><td class="hostname">A22-pol-zovatela-hhaauunntt</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.67</td><td class="starts">2024/12/21 09:05:13</td><td class="ends">2024/12/21 11:05:13</td><td class="mac">d0:d7:83:39:-:-</td><td class="hostname">HUAWEI_Y7_Prime_2018-a333</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.107</td><td class="starts">2024/12/21 09:04:21</td><td class="ends">2024/12/21 11:04:21</td><td class="mac">de:dd:5e:2f:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.149</td><td class="starts">2024/12/21 09:01:46</td><td class="ends">2024/12/21 11:01:46</td><td class="mac">7e:20:9d:cd:-:-</td><td class="hostname">EA-s-S23-Ultra</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.117</td><td class="starts">2024/12/21 08:52:22</td><td class="ends">2024/12/21 10:52:22</td><td class="mac">90:94:97:2c:-:-</td><td class="hostname">HUAWEI_Mate_10_lite-cbd59</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.99</td><td class="starts">2024/12/21 10:49:27</td><td class="ends">2024/12/21 10:51:27</td><td class="mac">c2:2a:57:ab:-:-</td><td class="hostname">HUAWEI_P30-e1a9884290633f</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.48</td><td class="starts">2024/12/21 10:22:21</td><td class="ends">2024/12/21 10:24:21</td><td class="mac">7c:a1:77:2e:-:-</td><td class="hostname">HUAWEI_P20_Pro-247ea6f349</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.221</td><td class="starts">2024/12/21 07:14:31</td><td class="ends">2024/12/21 09:14:31</td><td class="mac">6a:94:7d:9c:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.60</td><td class="starts">2024/12/21 07:58:05</td><td class="ends">2024/12/21 08:00:05</td><td class="mac">6a:d3:b4:22:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.64</td><td class="starts">2024/12/21 05:19:22</td><td class="ends">2024/12/21 07:19:22</td><td class="mac">9a:9b:e0:d0:-:-</td><td class="hostname">Galaxy-S22</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.103</td><td class="starts">2024/12/20 22:37:21</td><td class="ends">2024/12/21 00:37:21</td><td class="mac">ce:12:d6:c6:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.115</td><td class="starts">2024/12/20 21:19:58</td><td class="ends">2024/12/20 23:19:58</td><td class="mac">ae:12:3e:20:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.232</td><td class="starts">2024/12/20 20:50:28</td><td class="ends">2024/12/20 22:50:28</td><td class="mac">e2:13:76:c6:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.49</td><td class="starts">2024/12/20 21:20:49</td><td class="ends">2024/12/20 21:22:49</td><td class="mac">72:80:6e:e2:-:-</td><td class="hostname">HUAWEI_P30_Pro-9eb6c7e039</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.176</td><td class="starts">2024/12/20 21:05:59</td><td class="ends">2024/12/20 21:07:59</td><td class="mac">5a:45:25:7d:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.162</td><td class="starts">2024/12/20 19:06:03</td><td class="ends">2024/12/20 21:06:03</td><td class="mac">a2:ee:2a:66:-:-</td><td class="hostname">Mariya-s-A23</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.218</td><td class="starts">2024/12/20 19:04:02</td><td class="ends">2024/12/20 19:06:02</td><td class="mac">c2:0b:30:59:-:-</td><td class="hostname">HUAWEI_Mate_20_Pro-774288</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.152</td><td class="starts">2024/12/20 16:13:34</td><td class="ends">2024/12/20 18:13:34</td><td class="mac">42:68:3c:a6:-:-</td><td class="hostname">HUAWEI_nova_5T-81374822bc</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.226</td><td class="starts">2024/12/20 11:39:49</td><td class="ends">2024/12/20 17:39:49</td><td class="mac">d2:13:3d:22:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.203</td><td class="starts">2024/12/20 13:58:57</td><td class="ends">2024/12/20 15:58:57</td><td class="mac">f6:07:be:5f:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.185</td><td class="starts">2024/12/20 13:18:30</td><td class="ends">2024/12/20 15:18:30</td><td class="mac">7a:1d:84:fc:-:-</td><td class="hostname">Galaxy-A51</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.111</td><td class="starts">2024/12/20 12:48:36</td><td class="ends">2024/12/20 14:48:36</td><td class="mac">44:59:e3:75:-:-</td><td class="hostname">HUAWEI_P30_lite-8e2ba4862</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.198</td><td class="starts">2024/12/20 12:42:36</td><td class="ends">2024/12/20 14:42:36</td><td class="mac">92:64:81:13:-:-</td><td class="hostname">Xiaomi-Pad-6</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.36</td><td class="starts">2024/12/20 12:20:22</td><td class="ends">2024/12/20 14:20:22</td><td class="mac">6c:06:d6:bf:-:-</td><td class="hostname">HUAWEI_P_smart_Z-9a52dca3</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.72</td><td class="starts">2024/12/20 12:20:21</td><td class="ends">2024/12/20 14:20:21</td><td class="mac">fc:b3:bc:fb:-:-</td><td class="hostname">PaulaMain</td><td class="vendor">Intel Corporate</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.164</td><td class="starts">2024/12/20 12:18:34</td><td class="ends">2024/12/20 14:18:34</td><td class="mac">1c:13:86:05:-:-</td><td class="hostname">HUAWEI_P_smart_Pro-d07a50</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.77</td><td class="starts">2024/12/20 12:09:56</td><td class="ends">2024/12/20 14:09:56</td><td class="mac">be:26:18:82:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.146</td><td class="starts">2024/12/20 12:03:16</td><td class="ends">2024/12/20 14:03:16</td><td class="mac">02:fe:96:5e:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.63</td><td class="starts">2024/12/20 11:10:39</td><td class="ends">2024/12/20 13:10:39</td><td class="mac">ba:53:f0:ca:-:-</td><td class="hostname">Redmi-Note-11-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.144</td><td class="starts">2024/12/20 10:18:53</td><td class="ends">2024/12/20 12:18:53</td><td class="mac">34:29:12:10:-:-</td><td class="hostname">HUAWEI_Mate_20_lite-3b0a6</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.104</td><td class="starts">2024/12/20 09:57:20</td><td class="ends">2024/12/20 11:57:20</td><td class="mac">48:e7:da:cc:-:-</td><td class="hostname">KALLI</td><td class="vendor">AzureWave Technology Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.154</td><td class="starts">2024/12/20 09:29:10</td><td class="ends">2024/12/20 11:29:10</td><td class="mac">4c:d1:a1:6b:-:-</td><td class="hostname">HUAWEI_P20_Pro-941bc328cc</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.212</td><td class="starts">2024/12/20 10:41:37</td><td class="ends">2024/12/20 10:43:37</td><td class="mac">16:10:f7:50:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.93</td><td class="starts">2024/12/20 08:37:50</td><td class="ends">2024/12/20 10:37:50</td><td class="mac">a8:c2:52:0b:-:-</td><td class="hostname">HUAWEI_P30_lite-a53c3246f</td><td class="vendor">Huawei Device Co., Ltd.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.168</td><td class="starts">2024/12/20 10:32:52</td><td class="ends">2024/12/20 10:34:52</td><td class="mac">e4:a7:c5:9b:-:-</td><td class="hostname">HUAWEI_P20-a763a5579daa04</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.75</td><td class="starts">2024/12/20 10:26:31</td><td class="ends">2024/12/20 10:28:31</td><td class="mac">72:bc:25:52:-:-</td><td class="hostname">HUAWEI_P30_Pro-b2fb805b39</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.50</td><td class="starts">2024/12/20 08:21:45</td><td class="ends">2024/12/20 10:21:45</td><td class="mac">ca:09:6c:b3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.191</td><td class="starts">2024/12/20 08:21:21</td><td class="ends">2024/12/20 10:21:21</td><td class="mac">e8:4c:4a:9f:-:-</td><td class="hostname"></td><td class="vendor">Amazon Technologies Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.228</td><td class="starts">2024/12/20 08:20:23</td><td class="ends">2024/12/20 10:20:23</td><td class="mac">f6:11:0b:c3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.145</td><td class="starts">2024/12/20 09:24:58</td><td class="ends">2024/12/20 09:26:58</td><td class="mac">d2:89:ed:2b:-:-</td><td class="hostname">HUAWEI_P30_Pro-5373f6ccc0</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.141</td><td class="starts">2024/12/20 09:16:24</td><td class="ends">2024/12/20 09:18:24</td><td class="mac">72:ba:7f:c9:-:-</td><td class="hostname">HUAWEI_P30_Pro-18ee44f5b7</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.122</td><td class="starts">2024/12/20 07:51:01</td><td class="ends">2024/12/20 07:53:01</td><td class="mac">26:ec:c1:2a:-:-</td><td class="hostname">Annie-s-S24</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.131</td><td class="starts">2024/12/20 06:23:48</td><td class="ends">2024/12/20 06:25:48</td><td class="mac">c2:eb:79:3e:-:-</td><td class="hostname">HUAWEI_P30_Pro-fef07ddd80</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.150</td><td class="starts">2024/12/20 04:24:43</td><td class="ends">2024/12/20 06:24:43</td><td class="mac">8c:83:e1:1f:-:-</td><td class="hostname">Galaxy-J7-Prime2</td><td class="vendor">Samsung Electronics Co.,Ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.238</td><td class="starts">2024/12/20 04:32:05</td><td class="ends">2024/12/20 04:34:05</td><td class="mac">f0:e4:a2:43:-:-</td><td class="hostname">HUAWEI_P30_lite-91bf408eb</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.161</td><td class="starts">2024/12/19 21:51:02</td><td class="ends">2024/12/19 21:53:02</td><td class="mac">ec:89:14:55:-:-</td><td class="hostname">HUAWEI_P20-8778765bfb5e46</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.139</td><td class="starts">2024/12/19 13:38:42</td><td class="ends">2024/12/19 19:38:42</td><td class="mac">5a:8a:64:bf:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.158</td><td class="starts">2024/12/19 18:36:27</td><td class="ends">2024/12/19 18:38:27</td><td class="mac">f6:1c:92:60:-:-</td><td class="hostname">realme-10-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.86</td><td class="starts">2024/12/19 16:30:35</td><td class="ends">2024/12/19 18:30:35</td><td class="mac">b4:86:55:3a:-:-</td><td class="hostname">HUAWEI_P20-9a9afd0e70c63f</td><td class="vendor">HUAWEI TECHNOLOGIES CO.,LTD</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.54</td><td class="starts">2024/12/19 16:27:52</td><td class="ends">2024/12/19 18:27:52</td><td class="mac">76:c6:00:34:-:-</td><td class="hostname">To-A22-tou-tes-Stalo</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.69</td><td class="starts">2024/12/19 11:25:01</td><td class="ends">2024/12/19 17:25:01</td><td class="mac">14:7d:da:1a:-:-</td><td class="hostname"></td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.16.159</td><td class="starts">2024/12/19 11:18:31</td><td class="ends">2024/12/19 17:18:31</td><td class="mac">f6:5e:00:5a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.121</td><td class="starts">2024/12/19 13:55:58</td><td class="ends">2024/12/19 15:55:58</td><td class="mac">4e:dd:32:f9:-:-</td><td class="hostname">Nokia-G42-5G</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.35</td><td class="starts">2024/12/19 13:06:17</td><td class="ends">2024/12/19 15:06:17</td><td class="mac">96:7e:46:d7:-:-</td><td class="hostname">Eli-s-mobile</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.169</td><td class="starts">2024/12/19 13:03:17</td><td class="ends">2024/12/19 15:03:17</td><td class="mac">d2:fa:d8:d4:-:-</td><td class="hostname">JLN-LX1</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.47</td><td class="starts">2024/12/19 12:33:18</td><td class="ends">2024/12/19 14:33:18</td><td class="mac">d2:fe:cd:f5:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.106</td><td class="starts">2024/12/19 14:27:33</td><td class="ends">2024/12/19 14:29:33</td><td class="mac">a2:0b:8a:05:-:-</td><td class="hostname">Redmi-Note-12-Pro</td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.16.38</td><td class="starts">2024/12/19 12:05:00</td><td class="ends">2024/12/19 14:05:00</td><td class="mac">ca:30:06:00:-:-</td><td class="hostname">Redmi-Note-13</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.15.158</td><td class="starts">2024/12/24 08:47:13</td><td class="ends">2024/12/31 08:47:13</td><td class="mac">fa:12:05:af:-:-</td><td class="hostname">iPhone</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.15.135</td><td class="starts">2024/12/24 06:53:25</td><td class="ends">2024/12/31 06:53:25</td><td class="mac">1c:57:dc:6d:-:-</td><td class="hostname">MacBook-Air</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Leased"><td class="ip">192.168.15.149</td><td class="starts">2024/12/24 05:19:43</td><td class="ends">2024/12/31 05:19:43</td><td class="mac">00:e0:4c:68:-:-</td><td class="hostname">Macbook2015</td><td class="vendor">REALTEK SEMICONDUCTOR CORP.</td></tr>
+<tr class="Leased"><td class="ip">192.168.15.148</td><td class="starts">2024/12/24 05:19:43</td><td class="ends">2024/12/31 05:19:43</td><td class="mac">c4:b3:01:c7:-:-</td><td class="hostname">Macbook2015</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Leased"><td class="ip">192.168.15.128</td><td class="starts">2024/12/24 06:26:15</td><td class="ends">2024/12/25 06:26:15</td><td class="mac">24:a4:3c:b0:-:-</td><td class="hostname"></td><td class="vendor">Ubiquiti Inc</td></tr>
+<tr class="Leased"><td class="ip">192.168.15.139</td><td class="starts">2024/12/24 05:58:41</td><td class="ends">2024/12/25 05:58:41</td><td class="mac">0c:51:01:e9:-:-</td><td class="hostname">silverpot</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Leased"><td class="ip">192.168.15.131</td><td class="starts">2024/12/23 11:12:13</td><td class="ends">2024/12/24 11:12:13</td><td class="mac">8a:f4:ea:86:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.146</td><td class="starts">2024/10/22 16:12:44</td><td class="ends">2024/10/23 04:22:22</td><td class="mac">94:57:a5:d1:-:-</td><td class="hostname">NPID12F72</td><td class="vendor">Hewlett Packard</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.137</td><td class="starts">2024/10/02 08:36:30</td><td class="ends">2024/10/09 08:36:30</td><td class="mac">46:5a:65:a1:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.143</td><td class="starts">2024/10/06 12:08:56</td><td class="ends">2024/10/07 12:08:56</td><td class="mac">a0:78:17:69:-:-</td><td class="hostname">Pantelis-MBP</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.136</td><td class="starts">2024/07/07 06:52:16</td><td class="ends">2024/07/14 06:52:16</td><td class="mac">f4:d4:88:88:-:-</td><td class="hostname">MacBook-Pro-2</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.151</td><td class="starts">2024/04/06 18:49:55</td><td class="ends">2024/04/07 18:49:55</td><td class="mac">b6:e2:36:06:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.157</td><td class="starts">2024/03/09 09:59:41</td><td class="ends">2024/03/16 09:59:41</td><td class="mac">6a:fc:44:43:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.156</td><td class="starts">2024/02/12 13:29:41</td><td class="ends">2024/02/19 13:29:41</td><td class="mac">02:2c:ff:07:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.155</td><td class="starts">2024/02/12 12:11:21</td><td class="ends">2024/02/13 12:11:21</td><td class="mac">5a:ed:a6:a3:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.145</td><td class="starts">2024/02/12 12:11:15</td><td class="ends">2024/02/13 12:11:15</td><td class="mac">66:8a:74:33:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.154</td><td class="starts">2024/02/03 13:11:04</td><td class="ends">2024/02/10 13:11:04</td><td class="mac">fe:ac:bb:20:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.153</td><td class="starts">2024/01/21 12:36:40</td><td class="ends">2024/01/22 12:36:40</td><td class="mac">fe:ea:85:74:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.152</td><td class="starts">2024/01/10 12:30:17</td><td class="ends">2024/01/11 12:30:17</td><td class="mac">de:06:86:a0:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.150</td><td class="starts">2023/12/06 12:01:48</td><td class="ends">2023/12/07 12:01:48</td><td class="mac">fe:3e:28:f6:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.132</td><td class="starts">2023/11/27 08:54:55</td><td class="ends">2023/12/04 08:54:55</td><td class="mac">c4:2c:03:13:-:-</td><td class="hostname">Din-old</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.147</td><td class="starts">2023/11/18 12:24:33</td><td class="ends">2023/11/19 12:24:33</td><td class="mac">da:fa:cd:4a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.134</td><td class="starts">2023/10/16 04:37:05</td><td class="ends">2023/10/23 04:37:05</td><td class="mac">58:b0:35:7f:-:-</td><td class="hostname">Din-old</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.141</td><td class="starts">2023/07/26 05:45:43</td><td class="ends">2023/08/02 05:45:43</td><td class="mac">12:fd:6c:69:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.144</td><td class="starts">2023/07/27 07:06:13</td><td class="ends">2023/07/28 07:06:13</td><td class="mac">64:6d:2f:a1:-:-</td><td class="hostname">PanteliiPhone13</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.142</td><td class="starts">2023/03/24 01:44:07</td><td class="ends">2023/03/31 01:44:07</td><td class="mac">60:dd:70:9c:-:-</td><td class="hostname">iPad</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.138</td><td class="starts">2023/03/23 13:28:15</td><td class="ends">2023/03/23 13:30:15</td><td class="mac">8a:60:2e:2c:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.140</td><td class="starts">2023/02/24 14:50:09</td><td class="ends">2023/03/03 14:50:09</td><td class="mac">b8:e8:56:43:-:-</td><td class="hostname">CoMMyMBP2013</td><td class="vendor">Apple, Inc.</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.133</td><td class="starts">2023/01/25 11:35:44</td><td class="ends">2023/01/25 11:37:44</td><td class="mac">fa:ec:b8:7a:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Expired"><td class="ip">192.168.15.130</td><td class="starts">2022/11/04 19:18:18</td><td class="ends">2022/11/05 19:18:18</td><td class="mac">68:f7:28:76:-:-</td><td class="hostname">opend</td><td class="vendor">LCFC(Hefei) Electronics Technology co., ltd</td></tr>
+<tr class="Expired"><td class="ip">192.168.15.129</td><td class="starts">2022/09/03 12:41:21</td><td class="ends">2022/09/04 00:41:21</td><td class="mac">da:bc:a1:a5:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.155</td><td class="starts">2024/12/24 09:41:39</td><td class="ends">2024/12/24 11:41:39</td><td class="mac">5a:f9:f1:5f:-:-</td><td class="hostname">Redmi-Note-12-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.155</td><td class="starts">2024/12/24 09:41:41</td><td class="ends">2024/12/24 11:41:41</td><td class="mac">5a:f9:f1:5f:-:-</td><td class="hostname">Redmi-Note-12-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.155</td><td class="starts">2024/12/24 09:41:51</td><td class="ends">2024/12/24 11:41:51</td><td class="mac">5a:f9:f1:5f:-:-</td><td class="hostname">Redmi-Note-12-Pro-5G</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.114</td><td class="starts">2024/12/24 09:41:52</td><td class="ends">2024/12/24 11:41:52</td><td class="mac">f6:06:4a:1b:-:-</td><td class="hostname">Redmi-Note-13-Pro</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.237</td><td class="starts">2024/12/24 09:44:11</td><td class="ends">2024/12/24 11:44:11</td><td class="mac">2a:bf:84:c6:-:-</td><td class="hostname">Galaxy-A13</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.207</td><td class="starts">2024/12/24 09:45:20</td><td class="ends">2024/12/24 15:45:20</td><td class="mac">9a:51:c7:ac:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.38</td><td class="starts">2024/12/24 09:48:24</td><td class="ends">2024/12/24 11:48:24</td><td class="mac">22:4f:3c:36:-:-</td><td class="hostname">Galaxy-A32</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.15.158</td><td class="starts">2024/12/24 09:49:35</td><td class="ends">2024/12/31 09:49:35</td><td class="mac">fa:12:05:af:-:-</td><td class="hostname">iPhone</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.15.158</td><td class="starts">2024/12/24 09:49:35</td><td class="ends">2024/12/31 09:49:35</td><td class="mac">fa:12:05:af:-:-</td><td class="hostname">iPhone</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.96</td><td class="starts">2024/12/24 10:03:46</td><td class="ends">2024/12/24 16:03:46</td><td class="mac">da:49:1b:40:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.106</td><td class="starts">2024/12/24 10:12:00</td><td class="ends">2024/12/24 12:12:00</td><td class="mac">e2:9f:42:3b:-:-</td><td class="hostname">Maria-s-S23</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.47</td><td class="starts">2024/12/24 10:19:03</td><td class="ends">2024/12/24 12:19:03</td><td class="mac">0a:e4:01:2d:-:-</td><td class="hostname">Louisa-s-A33</td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.81</td><td class="starts">2024/12/24 10:23:25</td><td class="ends">2024/12/24 12:23:25</td><td class="mac">d6:f1:aa:ca:-:-</td><td class="hostname"></td><td class="vendor"></td></tr>
+<tr class="Leased"><td class="ip">192.168.16.74</td><td class="starts">2024/12/24 10:24:35</td><td class="ends">2024/12/24 12:24:35</td><td class="mac">5e:27:7c:df:-:-</td><td class="hostname">Jay-s-S10</td><td class="vendor"></td></tr><tr class="Fixed"><td class="ip">192.168.15.11</td><td class="starts"></td><td class="ends"></td><td class="mac">28:f3:66:3e:-:-</td><td class="hostname">camera</td><td class="vendor">Shenzhen Bilian electronic CO.,LTD</td></tr><tr class="Fixed"><td class="ip">192.168.15.12</td><td class="starts"></td><td class="ends"></td><td class="mac">9C:93:4E:AC:-:-</td><td class="hostname">printer</td><td class="vendor">Xerox Corporation</td></tr><tr class="Fixed"><td class="ip">192.168.15.13</td><td class="starts"></td><td class="ends"></td><td class="mac">94:57:a5:d1:-:-</td><td class="hostname">printerHP</td><td class="vendor">Hewlett Packard</td></tr>
+					</tbody>
+					<tfoot id="leases_message">
+						<tr><td colspan="6">-- empty --</td></tr>
+					</tfoot>
+				</table>
+			</div>
+		</div>
+	</body>
+	</html>
