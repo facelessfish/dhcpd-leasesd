@@ -1,5 +1,5 @@
 #!/bin/sh
-version='1.5'
+version='1.6'
 # Copyright (c) 2022 Dinos Costanti <dinos@lab02.org>
 # https://github.com/facelessfish/dhcpd-leasesd
 # 
@@ -22,7 +22,7 @@ listen='127.0.0.1'
 port='9130'
 leases_db='/var/db/dhcpd.leases'
 dhcpd_conf='/etc/dhcpd.conf'
-log_file='/tmp/dhcpd_leases.log'
+log_file='/tmp/dhcpd_leasesd.log'
 fifo='/tmp/dhcpd_leases_http'
 
 oui_tmp='/tmp/oui'
@@ -33,18 +33,18 @@ oui_server='standards-oui.ieee.org'
 css='inc/styles.css'
 js='inc/javascript.js'
 
-
-self=$0
-merge=true
-usage="dhcpd-leasesd [-b dhcpd.leases] [-c dhcpd.conf] [-t] [-v] [-k] [-u] [-f out_file]\n              [-d [-l listening_ip_address] [-p port]]"
-
-logo="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"
+www_root='/var/www/'
+config_file='/etc/dhcpd_leasesd.conf'
 
 opt_vendor_lookup=false
 opt_server=false
 opt_header=false
+opt_httpd_setup=false
 
 
+logo="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"
+self=$0
+merge=true
 
 # Print on terminal if exists, else log
 if [ -t 0 ]; then
@@ -79,17 +79,17 @@ function oui_update {
 		if [ ! -d "$oui_tmp" ]; then
 			mkdir "$oui_tmp"
 		else
-			rm ${oui_tmp}/*.csv 2>/dev/null || [[ $? == 1 ]]
+			rm -f ${oui_tmp}/*.csv || [[ $? == 1 ]]
 		fi
 		> ${oui_downloading}
 		progress=0
 		lprint "$(date '+%Y-%m-%d %H:%M:%S') Downloading from https://${oui_server}\n"
 		typeset -l index
 
-		print "GET / HTTP/1.1\nHost: ${oui_server}\nConnection: close\r\n" | nc -w 60 -c standards-oui.ieee.org 443 \
-		| tr -d "\r" \
-		| grep "(hex)" \
-		| while read -r line; do
+		print "GET / HTTP/1.1\nHost: ${oui_server}\nConnection: close\r\n" | nc -w 60 -c ${oui_server} 443 | \
+		tr -d "\r" | \
+		grep "(hex)" | \
+		while read -r line; do
 			row="${line%'   (hex)		'*}|${line#*'   (hex)		'}" # "\ \ \ (hex)\t\t"
 			index=${row%"${row#?}"}	#first char
 			print "$row" >> "${oui_tmp}/${oui_db}${index}.csv"
@@ -102,11 +102,11 @@ function oui_update {
 		
 		set -A vendors $(cat $oui_tmp/* | wc -l)
 		lprint "\n${vendors[0]} Vendors\n"
-		if [ $vendors -lt 36300 ]; then
-			rm ${oui_tmp}/* 2>/dev/null || [[ $? == 1 ]]
+		if [ ${vendors[0]} -lt 38000 ]; then
+			rm -f ${oui_tmp}/* || [[ $? == 1 ]]
 			lprint "$(date '+%Y-%m-%d %H:%M:%S') Oui download interrupted. Incomplete data deleted.\n"
 		else
-			rm ${oui_downloading} 2>/dev/null || [[ $? == 1 ]]
+			rm -f ${oui_downloading} || [[ $? == 1 ]]
 			lprint "$(date '+%Y-%m-%d %H:%M:%S') Finished.\n"
 		fi
 	fi
@@ -115,7 +115,7 @@ function oui_update {
 
 function oui_lookup {
 	IFS=':'; set -- $1; unset IFS
-	oui_data=$(grep -iF -m 1 ${1}-${2}-${3} ${oui_tmp}/${oui_db}${1%"${1#?}"}.csv 2>/dev/null) || true
+	oui_data=$(grep -isF -m 1 ${1}-${2}-${3} ${oui_tmp}/${oui_db}${1%"${1#?}"}.csv ) || true
 	if [ ! "$oui_data" = '' ]; then
 		print "${oui_data#*'|'}"
 	fi
@@ -292,6 +292,61 @@ EOF
 }
 
 
+function usage {
+cat <<EOF
+$(basename $self) [-b dhcpd.leases] [-c dhcpd.conf] [-t] [-v] [-u] [-f out_file] [-h]
+              [-d [-l listening_ip_address] [-p port]]
+              [-s [-w httpd_chroot_path]]
+
+If its run without options it will output HTML to stdout and exit.
+
+-d Run as a deamon using the nc http server. Can only serve one request at a 
+   time. -t is ignored (always on).
+
+-l Listening address. Used only with -d. Default: 127.0.0.1
+
+-p Listening port. Used only with -d. Default: 9130
+
+-v Enable MAC address vendor lookup. Oui db will be downloaded and cached into
+   /tmp if not already there.
+
+-t Prepend an HTTP 200 header to the HTML output. Needed when used with 
+   tcpserver.
+
+-b Path to dhcps.leases. Default: /var/db/dhcpd.leases
+
+-c Path to dhcpd.conf. Default: /etc/dhcpd.conf
+
+-u Update the vendor database and exit. All other options are ignored.
+
+-f Merge the sh script, javascript and styles into out_file and exit. All other
+   options are ignored.
+
+-k Kill the script if running in the background and exit.
+
+-s Setup httpd(8). Copy the required commands, their dynamic libs and config files
+   to the httpd chroot, if they don't already exist there. No files are overwritten.
+   Interactive only, requires user confirmation.
+   ($cmds)
+
+-w Httpd(8) chroot directory. Used only with -s. Default: /var/www
+
+-h Usage information
+
+Examples:
+  $ dhcpd-leasesd.sh -d
+
+  $ dhcpd-leasesd.sh -dv -b ./dhcpd.leases -c ./dhcpd.conf -l 192.168.0.1 -p 9130
+
+  $ dhcpd-leasesd -f dhcpd-leasesd.sh 
+
+  $ tcpserver 192.168.0.1 9130 dhcpd-leasesd.sh -tv
+
+Dinos Costanti https://github.com/facelessfish/dhcpd-leasesd
+EOF
+}
+
+
 function http_server {
 	lprint "$(date '+%Y-%m-%d %H:%M:%S') Listening on ${listen}:${port}\n"
 	# Make fifo
@@ -306,7 +361,7 @@ function http_server {
 			if [ ! -d "$oui_tmp" ]; then
 				mkdir "$oui_tmp"
 			fi
-			$self -u >/dev/null &
+			$self -u &
 			> ${oui_downloading} # Downloading msg for current request
 		fi
 		html_home_page
@@ -315,9 +370,70 @@ function http_server {
 }
 
 
+function httpd_setup {
+	print "Copying: [ ${cmds} ] and required libs\nTo: ${www_root}\nNo files will be overwritten.\n\nThe following will happen:\n"
+	installer=''
+	
+	for cmd in ${cmds}; do
+		[[ "$(basename $cmd)" = "${cmd}" ]] && cmd_path="$(which $cmd 2>/dev/null)" || cmd_path="${cmd}"
+		cmd_dst_path="${www_root}${cmd_path}"
+		cmd_dst_mk="$(dirname ${cmd_dst_path})"
+
+		if [ ! -f "${cmd_dst_path}" ]; then
+			if [ ! -d "${cmd_dst_mk}" ] && [ "$(print $installer | grep $cmd_dst_mk)" = '' ]; then
+				mk="mkdir -p \"${cmd_dst_mk}\""
+				installer="${installer}${mk};"
+			fi
+			installer="${installer}cp -p ${cmd_path} \"${cmd_dst_path}\";"
+			if [ -x $cmd_path ]; then 
+				libs="$(
+					ldd $cmd_path | grep .so | \
+					while read -r line; do
+						set -A lib_path $line
+						lib=${lib_path[6]}
+						lib_dst_path="${www_root}${lib}"
+						if [ ! -f "${lib_dst_path}" ] && [ "$(print $installer | grep $lib)" = '' ]; then
+							lib_dst_path_mk="$(dirname $lib_dst_path)"
+							mk=" mkdir -p \"${lib_dst_path_mk}\";"
+							if [ ! -d "${lib_dst_path_mk}" ]  && [ "$(print $installer | grep ${lib_dst_path_mk})" = '' ]; then
+								print -n "${mk}"
+								installer="${installer} ${mk};"
+							fi
+							print -n " cp -p ${lib} \"${lib_dst_path}\";"
+						fi 
+					done
+				)"
+				installer="${installer}${libs}"
+			fi
+		fi
+	done
+
+	if [ ! "${installer}" = '' ]; then 
+		IFS=';'; set -A installer_data $installer; unset IFS
+		for installer_line in "${installer_data[@]}" ; do
+			dsp_installer="${dsp_installer}${installer_line}\n"
+		done
+		print $dsp_installer
+		print -n "Confirm [y/N]:"; read reply
+
+		case "${reply}" in
+		'y' | 'Y' )
+			eval $installer || true
+			print "done."
+			;;
+		'' | ? )
+			print "aborted."
+			;;
+		esac
+	else 
+		print "Files already exist at destination.\nNothing to do."
+	fi
+}
+
+
 function script_export {
 	file=$1;
-	lprint "Merging script, javascript and styles into: $file\n"
+	lprint "$(date '+%Y-%m-%d %H:%M:%S') Merging script, javascript and styles into: $file\n"
 	> $file
 	IFS=''
 
@@ -343,30 +459,32 @@ function script_export {
 				printf '%s\n' "${line}" >> $file
 			fi
 		done < $self
+		chmod +x $file
 	else 
-		lprint "Cant merge a merged script (${self}).\n"
+		lprint "$(date '+%Y-%m-%d %H:%M:%S') Can't merge a merged script (${self}).\n"
 		exit
 	fi
-	chmod +x $file
-	lprint "Done.\n"
+	lprint "$(date '+%Y-%m-%d %H:%M:%S') Done.\n"
 }
 
 
 
 
-while getopts 'dhtuvkf:l:p:b:c:' name; do
+while getopts 'dhtuvksf:l:p:b:c:w:' name; do
 	case $name in
 	f)	
 		script_export $OPTARG
 		exit ;;
 	u)	
-		rm ${oui_tmp}/${oui_db}0.csv 2>/dev/null || [[ $? == 1 ]]
+		rm -f ${oui_tmp}/${oui_db}0.csv || [[ $? == 1 ]]
 		oui_update
 		exit ;;
 	k)
 		pr_name="$(basename $self)"
 		pkill -9 -q -P $(pgrep -of ${pr_name}) 
 		exit ;;
+	s)	
+		opt_httpd_setup=true;;
 	d)	
 		opt_server=true ;;
 	v)	
@@ -381,21 +499,50 @@ while getopts 'dhtuvkf:l:p:b:c:' name; do
 		leases_db=$OPTARG ;;
 	c)
 		dhcpd_conf=$OPTARG ;;
+	w)
+		www_root=$OPTARG ;;
 	h)	
-		lprint "${usage}\n"
+		# lprint "${usage}\n"
+		usage
 		exit ;;
 	?)	
-		lprint "${usage}\n"
+		#lprint "${usage}\n"
+		usage
 		exit 2 ;;
 	esac
 done
 shift $(($OPTIND - 1))
 
 
+# copy $cmds to the httpd chroot
+# cmds='cat date grep mkdir mkfifo nc printf rm sh tr wc pkill pgrep which basename dirname chmod ldd'
+# ./dhcpd-leasesd  -b dhcpd.leases -c dhcpd.conf -s -w ./www-test/ 
+if $opt_httpd_setup; then
+	cmds="cat date grep mkdir nc rm sh tr wc which basename dirname /etc/resolv.conf /etc/ssl/cert.pem" # ${dhcpd_conf} ${leases_db}"
+	if [ -t 0 ]; then
+		httpd_setup
+		exit
+	else 
+		lprint "$(date '+%Y-%m-%d %H:%M:%S') option -s aborted. httpd chroot setup can only be used interactively." 
+	fi
+fi
+
+
+# CGI mode
+# Output content-type if running as a cgi
+if [ ! "$REQUEST_URI" = '' ]; then
+	if [ -f "${config_file}" ]; then
+		. "${config_file}"
+	fi
+	print "Content-type: text/html\n\n";
+fi
+
+
 # update Vendor db
 if $opt_vendor_lookup; then 
 	oui_update
 fi
+
 
 # Serve using buildin nc server
 # ./dhcpd-leasesd  -dv -b dhcpd.leases -c dhcpd.conf -l 192.168.5.11
@@ -404,17 +551,15 @@ if $opt_server; then
 	exit
 fi
 
+
 # Output an HTTP 200 header before HTML. Useful for tcpserver
 # tcpserver 0.0.0.0 2000 ./dhcpd-leasesd -t
 if $opt_header; then
 	print "HTTP/1.1 200 OK\n"
 fi
 
-# CGI mode
-# Output content-type if running as a cgi
-if [ ! -t 0 ]; then
-	print "Content-type: text/html\n\n";
-fi
 
 html_home_page
 
+# Demo: censor mac addresses
+# ./dhcpd-leasesd -v -b dhcpd.leases -c dhcpd.conf | sed -Ee 's/:[0-9a-f]{2}:[0-9a-f]{2}<\/td><td class="hostn/:-:-<\/td><td class="hostn/g' > demo/demo.html
