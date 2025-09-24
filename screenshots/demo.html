@@ -723,7 +723,7 @@ function leases_filter(leases_state = false) {
 }
 </script>
 	</head>
-	<body onload="init()">
+	<body>
 		<div id="main">
 			<div id="stats"> 
 				<a href="https://github.com/facelessfish/dhcpd-leasesd" target="_blank"><img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 177 202'><path fill='rgb(64,86,145)' d='M85.824,52.416L85.536,52.416L46.656,160.416L46.944,160.704L132.768,144L133.056,143.712L85.824,52.416ZM0,171.648L63.936,0L99.936,0L176.544,148.032L160.416,176.544L25.92,201.6L0,171.648Z'/></svg>"></a>&nbsp; <b>dhcpd.leases dashboard</b> 1.5&nbsp;&nbsp;&nbsp; <b>Refreshed:</b><span id="now">2024/12/24 10:29:25</span> (<span>all time are <u>UTC</u></span>)&nbsp; <b>Parsing&nbsp;time:</b><span>4 sec. </span><div id ="refresh" class="button" onclick="location.reload()">&#8635; Refresh</div>
@@ -1018,4 +1018,5 @@ function leases_filter(leases_state = false) {
 			</div>
 		</div>
 	</body>
+	<script>init();</script>
 	</html>
